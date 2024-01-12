@@ -25,11 +25,10 @@
  */
 
 #include "Application.h"
-#include "EntryPoint.h"
+/* #include "EntryPoint.h" */
 #include "RayLayer.h"
 
-namespace EFWMCWalnut {
-Application *CreateApplication(int argc, char **) {
+int main(int argc, char **) {
   auto *app = new Application();
   app->onInit();
 
@@ -48,5 +47,3 @@ Application *CreateApplication(int argc, char **) {
   app->onFinish();
   return 0;
 }
-
-} // namespace EFWMCWalnut

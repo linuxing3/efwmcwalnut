@@ -15,3 +15,7 @@ set_allowedplats('windows', 'linux', 'macosx')
 
 includes('xmake')
 includes('Source')
+
+if has_config('example') then
+    includes('app')
+end
