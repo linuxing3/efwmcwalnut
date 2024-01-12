@@ -2,7 +2,7 @@
 
 add_rules('mode.debug', 'mode.release')
 
-target('Efwmc')
+target('efwmcwalnut')
 set_languages('c++20')
 set_kind('static')
 add_files('**.cpp')

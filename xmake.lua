@@ -15,4 +15,3 @@ set_allowedplats('windows', 'linux', 'macosx')
 
 includes('xmake')
 includes('Source')
-includes('app')
