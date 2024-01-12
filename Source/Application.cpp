@@ -27,7 +27,6 @@
 #include "Application.h"
 #include "ResourceManager.h"
 
-#define WEBGPU_BACKEND_WGPU
 #include "glfw3webgpu.h"
 #include "webgpu.h"
 #include "webgpu.hpp"
