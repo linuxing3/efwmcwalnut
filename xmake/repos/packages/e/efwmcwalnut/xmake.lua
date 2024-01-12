@@ -4,7 +4,7 @@ set_description('Bloat-free Immediate App Framework for C++ with minimal depende
 set_license('MIT')
 
 add_urls('https://github.com/linuxing3/efwmcwalnut.git')
-add_versions('v1.0.0', '7724c97844596f8f6c9eee249097e2e38eefc87e')
+add_versions('v1.0.0', 'master')
 
 add_includedirs('include', 'include/Source')
 
