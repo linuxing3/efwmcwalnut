@@ -13,7 +13,6 @@ add_files('**.cpp')
 add_includedirs('.')
 add_defines('RESOURCE_DIR="./wgpu"')
 add_defines('WEBGPU_BACKEND_WGPU')
-add_defines('WGPU_TARGET_LINUX_X11')
 -- packges with link need
 add_packages('glfw-walnut', 'imgui-walnut')
 if has_config('feature') then
