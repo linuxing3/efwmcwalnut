@@ -8,8 +8,10 @@ add_requires('stb')
 add_requires('tinyobjloader')
 add_requires('spdlog')
 add_requires('vulkan-headers')
+add_requires('walnut')
 
 add_requires('glfw3webgpu')
+add_requires('efwmcwalnut')
 
 if has_config('test') then
     add_requires('gtest')

@@ -1,6 +1,6 @@
 --- @diagnostic disable:undefined-global
 
-set_project('walnut-lib')
+set_project('efwmcwalnut')
 
 set_version('0.0.1')
 
@@ -14,7 +14,10 @@ add_repositories('xrepos xmake/repos')
 set_allowedplats('windows', 'linux', 'macosx')
 
 includes('xmake')
-includes('Source')
+
+if has_config('localdeps') then
+    includes('Source')
+end
 
 if has_config('example') then
     includes('app')
