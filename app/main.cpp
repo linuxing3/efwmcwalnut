@@ -25,6 +25,7 @@
  */
 
 #include "Application.h"
+#include "glfw3webgpu.h"
 /* #include "EntryPoint.h" */
 #include "Camera.h"
 #include "RayLayer.h"
