@@ -2,6 +2,10 @@
 
 add_rules('mode.debug', 'mode.release')
 
+if not has_config('feature') then
+    add_requires('efwmcwalnut')
+end
+
 target('wgpuapp')
 set_languages('c++20')
 set_kind('binary')
@@ -11,10 +15,11 @@ add_defines('RESOURCE_DIR="./wgpu"')
 add_defines('WEBGPU_BACKEND_WGPU')
 -- packges with link need
 add_packages('glfw3webgpu', 'glfw-walnut', 'imgui-walnut', 'walnut')
--- add_packages('efwmcwalnut')
 if has_config('feature') then
     add_deps('efwmcwalnut')
     add_includedirs('$(projectdir)/Source')
+else
+    add_packages('efwmcwalnut')
 end
 -- local packges with include and link need
 add_includedirs('$(projectdir)/vendor/webgpu/include')
