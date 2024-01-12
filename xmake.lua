@@ -15,7 +15,7 @@ set_allowedplats('windows', 'linux', 'macosx')
 
 includes('xmake')
 
-if has_config('localdeps') then
+if has_config('feature') then
     includes('Source')
 end
 

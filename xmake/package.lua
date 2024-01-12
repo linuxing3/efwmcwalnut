@@ -11,7 +11,10 @@ add_requires('vulkan-headers')
 add_requires('walnut')
 
 add_requires('glfw3webgpu')
-add_requires('efwmcwalnut')
+
+if has_config('example') and not has_config('feature') then
+    add_requires('efwmcwalnut')
+end
 
 if has_config('test') then
     add_requires('gtest')

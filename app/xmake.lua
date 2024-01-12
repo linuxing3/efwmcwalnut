@@ -10,10 +10,12 @@ add_includedirs('.')
 add_defines('RESOURCE_DIR="./wgpu"')
 add_defines('WEBGPU_BACKEND_WGPU')
 -- packges with link need
-add_packages('glfw3webgpu', 'glfw-walnut', 'imgui-walnut')
-add_packages('walnut')
-add_packages('efwmcwalnut')
--- add_includedirs('$(projectdir)/Source')
+add_packages('glfw3webgpu', 'glfw-walnut', 'imgui-walnut', 'walnut')
+-- add_packages('efwmcwalnut')
+if has_config('feature') then
+    add_deps('efwmcwalnut')
+    add_includedirs('$(projectdir)/Source')
+end
 -- local packges with include and link need
 add_includedirs('$(projectdir)/vendor/webgpu/include')
 add_includedirs('$(projectdir)/vendor/webgpu/include/webgpu')
