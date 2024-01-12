@@ -9,13 +9,9 @@ add_files('**.cpp')
 add_includedirs('.')
 add_defines('RESOURCE_DIR="./wgpu"')
 add_defines('WEBGPU_BACKEND_WGPU')
-add_defines('WGPU_TARGET_LINUX_X11')
-add_defines('WGPU_TARGET=WGPU_TARGET_LINUX_X11')
-add_defines('GLFW_EXPOSE_NATIVE_X11')
-add_defines('WEBGPU_BACKEND_WGPU')
 -- packges with link need
-add_packages('glfw3webgpu', 'glfw-walnut', 'imgui-walnut')
-add_links('glfw-walnut', 'glfw3webgpu')
+add_packages('glfw-walnut', 'imgui-walnut')
+add_links('glfw-walnut')
 -- packges without link need
 add_packages('vulkan-headers', 'stb', 'tinyobjloader')
 -- local packges with include and link need

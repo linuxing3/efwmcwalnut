@@ -32,7 +32,6 @@
 #include "webgpu.hpp"
 #include "wgpu.h" // wgpuTextureViewDrop
 
-#include "glfw3webgpu.h"
 #include <GLFW/glfw3.h>
 #include <cstdint>
 #include <sys/types.h>
@@ -43,6 +42,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/polar_coordinates.hpp>
 
+#include "ImGui/glfw3webgpu.cpp"
 #include "ImGui/imgui_impl_glfw.h"
 #include "ImGui/imgui_impl_wgpu.h"
 #include <imgui.h>
