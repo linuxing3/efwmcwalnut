@@ -3,9 +3,10 @@
 add_rules('mode.debug', 'mode.release')
 
 target('efwmcwalnut')
-set_languages('c++20')
+set_languages('c++20', 'c99')
 set_kind('static')
 add_files('**.cpp')
+add_files('*.c')
 add_includedirs('.')
 add_defines('RESOURCE_DIR="./wgpu"')
 add_defines('WEBGPU_BACKEND_WGPU')
