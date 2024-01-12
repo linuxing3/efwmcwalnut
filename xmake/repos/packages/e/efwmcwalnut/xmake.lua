@@ -10,5 +10,5 @@ add_includedirs('include', 'include/Source')
 
 on_install('macosx', 'linux', 'windows', 'mingw', 'android', 'iphoneos', function(package)
     os.cp('Source', package:installdir('include'))
-    import('package.tools.xmake').install(package, {})
+    import('package.tools.xmake').install(package, { configs = { ppfeature = true } })
 end)

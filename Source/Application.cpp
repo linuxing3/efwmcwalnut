@@ -43,8 +43,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/polar_coordinates.hpp>
 
-#include "imgui_impl_wgpu.h"
-#include <backends/imgui_impl_glfw.h>
+#include "ImGui/imgui_impl_glfw.h"
+#include "ImGui/imgui_impl_wgpu.h"
 #include <imgui.h>
 
 #include <array>
