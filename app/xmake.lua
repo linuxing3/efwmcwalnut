@@ -4,6 +4,9 @@ add_rules('mode.debug', 'mode.release')
 
 if not has_config('feature') then
     add_requires('efwmcwalnut')
+    add_requires('glfw3webgpu')
+    add_requires('imgui-walnut walnut', { configs = { glfw = true, vulkan = true } })
+    add_requires('glfw-walnut walnut', { configs = { glfw_include = 'vulkan' } })
 end
 
 target('wgpuapp')
@@ -14,12 +17,14 @@ add_includedirs('.')
 add_defines('RESOURCE_DIR="./wgpu"')
 add_defines('WEBGPU_BACKEND_WGPU')
 -- packges with link need
-add_packages('glfw-walnut', 'imgui-walnut')
 if has_config('feature') then
     add_deps('efwmcwalnut')
     add_includedirs('$(projectdir)/Source')
+    add_packages('glfw-walnut', 'imgui-walnut')
 else
     add_packages('efwmcwalnut')
+    add_packages('glfw3webgpu')
+    add_packages('glfw-walnut', 'imgui-walnut')
 end
 -- local packges with include and link need
 add_includedirs('$(projectdir)/vendor/webgpu/include')
