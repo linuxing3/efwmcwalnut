@@ -5,7 +5,7 @@ add_rules('mode.debug', 'mode.release')
 if not has_config('feature') then
     add_requires('efwmcwalnut')
     add_requires('glfw3webgpu')
-    add_requires('imgui-walnut walnut', { configs = { glfw = true, vulkan = true } })
+    add_requires('imgui-walnut walnut', { configs = { glfw = true, vulkan = true, wgpu = true } })
     add_requires('glfw-walnut walnut', { configs = { glfw_include = 'vulkan' } })
 end
 
