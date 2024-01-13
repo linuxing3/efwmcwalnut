@@ -27,6 +27,7 @@
 #include "Application.h"
 #include "ResourceManager.h"
 
+#define WEBGPU_BACKEND_WGPU
 #include "glfw3webgpu.h"
 #include "webgpu.h"
 #include "webgpu.hpp"
@@ -42,8 +43,10 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/polar_coordinates.hpp>
 
+// TODO: some
+#include "ImGui/efwmc_wgpu_backend.h"
 #include "ImGui/imgui_impl_glfw.h"
-#include "ImGui/imgui_impl_wgpu.h"
+/* #include "ImGui/imgui_impl_wgpu.h" */
 #include <imgui.h>
 
 #include <array>
