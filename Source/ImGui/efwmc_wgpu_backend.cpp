@@ -29,11 +29,9 @@
 #endif // WEBGPU_BACKEND_WGPU
 
 using VertexAttributes = ResourceManager::VertexAttributes;
+
 // Dear ImGui prototypes from imgui_internal.h
 extern ImGuiID ImHashData(const void *data_p, size_t data_size, ImU32 seed = 0);
-
-static void
-ImGui_ImplGPU_RecreateCommonBindGroup(WGPUBindGroupEntry common_bg_entries[]);
 
 // WebGPU data
 static WGPUDevice g_wgpuDevice = nullptr;
@@ -55,15 +53,6 @@ struct RenderResources {
   // without font texture bind group
   WGPUBindGroup CommonBindGroup; // Resources bind-group to bind the common
                                  // resources to pipeline
-  ImGuiStorage
-      ImageBindGroups; // Resources bind-group to bind the font/image resources
-                       // to pipeline (this is a key->value map)
-  // NOTE: bg_layouts[1] = fonts texture
-  WGPUBindGroup FontImageBindGroup; // Default font-resource of Dear ImGui
-  WGPUBindGroupLayout
-      FontImageBindGroupLayout; // Cache layout used for the image bind group.
-                                // Avoids allocating unnecessary JS objects when
-                                // working with WebASM
 };
 static RenderResources g_resources;
 
@@ -208,6 +197,27 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 )";
 
+// Predefined functions
+static void
+ImGui_ImplGPU_RecreateCommonBindGroup(WGPUBindGroupEntry common_bg_entries[]);
+
+static WGPUBindGroup
+ImGui_ImplWGPU_CreateImageBindGroup(WGPUBindGroupLayout layout,
+                                    WGPUTextureView texture);
+
+static void ImGui_ImplWGPU_SetupRenderState(ImDrawData *draw_data,
+                                            WGPURenderPassEncoder ctx,
+                                            FrameResources *fr);
+
+static void ImGui_ImplWGPU_CreateFontsTexture();
+
+static void ImGui_ImplWGPU_CreateUniformBuffer();
+
+static void ImGui_ImplWGPU_CreateLightUniformBuffer();
+
+static void ImGui_ImplWGPU_LoadObjToVertexBuffer();
+
+// Drop functions
 static void SafeRelease(ImDrawIdx *&res) {
   if (res)
     delete[] res;
@@ -270,8 +280,6 @@ static void SafeRelease(RenderResources &res) {
   SafeRelease(res.Sampler);
   SafeRelease(res.MyUniforms);
   SafeRelease(res.CommonBindGroup);
-  SafeRelease(res.FontImageBindGroup);
-  SafeRelease(res.FontImageBindGroupLayout);
 };
 
 static void SafeRelease(FrameResources &res) {
@@ -300,7 +308,6 @@ ImGui_ImplWGPU_CreateShaderModule(const char *wgsl_source) {
   return stage_desc;
 }
 
-// FIXME: only for font image_bind_group
 static WGPUBindGroup
 ImGui_ImplWGPU_CreateImageBindGroup(WGPUBindGroupLayout layout,
                                     WGPUTextureView texture) {
@@ -388,9 +395,6 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
   if (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f)
     return;
 
-  // FIXME: Assuming that this only gets called once per frame!
-  // If not, we can't just re-allocate the IB or VB, we'll have to do a proper
-  // allocator.
   g_frameIndex = g_frameIndex + 1;
   FrameResources *fr = &g_pFrameResources[g_frameIndex % g_numFramesInFlight];
 
@@ -457,7 +461,7 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
   wgpuQueueWriteBuffer(g_defaultQueue, fr->IndexBuffer, 0, fr->IndexBufferHost,
                        ib_write_size);
 
-  // Setup desired render state
+  // NOTE: Setup desired render state, bind common group from init
   ImGui_ImplWGPU_SetupRenderState(draw_data, pass_encoder, fr);
 
   // Render command lists
@@ -482,13 +486,13 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
       } else {
         ImTextureID tex_id = pcmd->GetTexID();
         WGPUBindGroupEntry common_bg_entries[] = {
-            // NOTE: mvp and misc uMyUniforms
+            // : mvp and misc uMyUniforms
             {nullptr, 0, g_resources.MyUniforms, 0, sizeof(MyUniforms), 0, 0},
-            // NOTE: sampler bind_group entry here
+            // : sampler bind_group entry here
             {nullptr, 1, 0, 0, 0, g_resources.Sampler, 0},
-            // NOTE: texture bind_group entry here
+            // :texture bind_group entry here
             {nullptr, 2, 0, 0, 0, 0, (WGPUTextureView)tex_id},
-            // NOTE: lightingMyUniforms
+            // :lightingMyUniforms
             {nullptr, 3, g_resources.LightingUniforms, 0,
              sizeof(LightingUniforms), 0, 0},
         };
@@ -643,14 +647,12 @@ ImGui_ImplGPU_RecreateCommonBindGroup(WGPUBindGroupEntry common_bg_entries[]) {
   common_bg_layout_desc.entryCount = 4;
   common_bg_layout_desc.entries = common_bg_layout_entries;
 
-  WGPUBindGroupLayout bg_layouts[1];
   // NOTE: bg_layouts[0] = MyUniforms + sampler + textureView + LightingUniforms
-  bg_layouts[0] =
-      wgpuDeviceCreateBindGroupLayout(g_wgpuDevice, &common_bg_layout_desc);
+  std::array<WGPUBindGroupLayout, 1> bg_layouts{
+      wgpuDeviceCreateBindGroupLayout(g_wgpuDevice, &common_bg_layout_desc)};
 
-  WGPUPipelineLayoutDescriptor layout_desc = {};
-  layout_desc.bindGroupLayoutCount = 2;
-  layout_desc.bindGroupLayouts = bg_layouts;
+  WGPUPipelineLayoutDescriptor layout_desc{.bindGroupLayoutCount = 2,
+                                           .bindGroupLayouts = &bg_layouts[0]};
 
   // NOTE: Set pipeline descriptor
   graphics_pipeline_desc.layout =
@@ -658,11 +660,11 @@ ImGui_ImplGPU_RecreateCommonBindGroup(WGPUBindGroupEntry common_bg_entries[]) {
 
   // Create resource bind group
   // Common bind group is in bg_layouts[0]
-  WGPUBindGroupDescriptor common_bg_descriptor = {};
-  common_bg_descriptor.layout = bg_layouts[0];
-  common_bg_descriptor.entryCount =
-      sizeof(common_bg_entries) / sizeof(WGPUBindGroupEntry);
-  common_bg_descriptor.entries = common_bg_entries;
+  WGPUBindGroupDescriptor common_bg_descriptor = {
+      .layout = bg_layouts[0],
+      .entryCount = sizeof(common_bg_entries) / sizeof(WGPUBindGroupEntry),
+      .entries = common_bg_entries,
+  };
 
   // NOTE: Update common bind group
   g_resources.CommonBindGroup =
@@ -787,7 +789,7 @@ bool ImGui_ImplWGPU_CreateDeviceObjects() {
   // NOTE: Create buffers
   ImGui_ImplWGPU_CreateUniformBuffer();
   ImGui_ImplWGPU_CreateLightUniformBuffer();
-  ImGui_ImplWGPU_LoadObjToVertexBuffer();
+  // ImGui_ImplWGPU_LoadObjToVertexBuffer();
 
   ImGui_ImplWGPU_CreateFontsTexture();
   WGPUBindGroupEntry common_bg_entries[] = {
@@ -801,7 +803,6 @@ bool ImGui_ImplWGPU_CreateDeviceObjects() {
       {nullptr, 3, g_resources.LightingUniforms, 0, sizeof(LightingUniforms), 0,
        0},
   };
-
   ImGui_ImplGPU_RecreateCommonBindGroup(common_bg_entries);
 
   SafeRelease(vertex_shader_desc.module);
@@ -849,9 +850,6 @@ bool ImGui_ImplWGPU_Init(WGPUDevice device, int num_frames_in_flight,
   g_resources.Sampler = nullptr;
   g_resources.MyUniforms = nullptr;
   g_resources.CommonBindGroup = nullptr;
-  g_resources.ImageBindGroups.Data.reserve(100);
-  g_resources.FontImageBindGroup = nullptr;
-  g_resources.FontImageBindGroupLayout = nullptr;
 
   // Create buffers with a default size (they will later be grown as needed)
   for (int i = 0; i < num_frames_in_flight; i++) {
