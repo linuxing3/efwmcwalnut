@@ -48,9 +48,9 @@
 #include <glm/gtx/polar_coordinates.hpp>
 
 // TODO: some
-/* #include "ImGui/efwmc_wgpu_backend.h" */
+#include "ImGui/efwmc_wgpu_backend.h"
 #include "ImGui/imgui_impl_glfw.h"
-#include "ImGui/imgui_impl_wgpu.h"
+// #include "ImGui/imgui_impl_wgpu.h"
 #include <imgui.h>
 
 #include <array>
@@ -73,7 +73,7 @@ static Application *s_Instance;
 
 constexpr float PI = 3.14159265358979323846f;
 
-// using namespace efwmc;
+using namespace efwmc;
 using namespace wgpu;
 using VertexAttributes = ResourceManager::VertexAttributes;
 using glm::mat4x4;
@@ -810,6 +810,7 @@ void Application::updateGui(RenderPassEncoder renderPass) {
   }
   ImGui::Render();
   ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), renderPass);
+  /* ImGui_ImplWGPU_RenderCustomData(renderPass); */
 }
 
 // NOTE: Set Application instance as static instance, not global variable

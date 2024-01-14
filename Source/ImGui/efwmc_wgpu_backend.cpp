@@ -146,7 +146,7 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 	
 	// Sample texture
-    let baseColor = textureSample(t, textureSampler, in.uv).rgb;
+    let baseColor = textureSample(baseColorTexture, textureSampler, in.uv).rgb;
 
 	// Combine texture and lighting
     let color = baseColor * uLighting.kd * diffuse + uLighting.ks * specular;
@@ -306,8 +306,6 @@ static void ImGui_ImplWGPU_SetupRenderState(ImDrawData *draw_data,
   }
 
   {
-    // NOTE: Need initial vertexbuffer data, otherwise will get renderpass
-    // error!
     wgpuQueueWriteBuffer(g_defaultQueue, fr->VertexBuffer, 0, &g_vertexData,
                          g_vertexData.size() * sizeof(VertexAttributes));
   }
@@ -336,6 +334,57 @@ static void ImGui_ImplWGPU_SetupRenderState(ImDrawData *draw_data,
   // Setup blend factor
   WGPUColor blend_color = {0.f, 0.f, 0.f, 0.f};
   wgpuRenderPassEncoderSetBlendConstant(ctx, &blend_color);
+}
+
+void ImGui_ImplWGPU_RenderCustomData(WGPURenderPassEncoder pass_encoder) {
+
+  g_frameIndex = g_frameIndex + 1;
+  FrameResources *fr = &g_pFrameResources[g_frameIndex % g_numFramesInFlight];
+
+  {
+    wgpuQueueWriteBuffer(g_defaultQueue, fr->VertexBuffer, 0, &g_vertexData,
+                         g_vertexData.size() * sizeof(VertexAttributes));
+  }
+
+  {
+    // TODO: update view matrix
+    wgpuQueueWriteBuffer(g_defaultQueue, g_resources.MyUniforms, 0, &g_uniforms,
+                         sizeof(MyUniforms));
+  }
+
+  {
+
+    // TODO: update lighting
+    wgpuQueueWriteBuffer(g_defaultQueue, g_resources.LightingUniforms, 0,
+                         &g_lightingUniforms, sizeof(LightingUniforms));
+  }
+
+  // NOTE: Bind shader and vertex buffers
+  wgpuRenderPassEncoderSetVertexBuffer(pass_encoder, 0, fr->VertexBuffer, 0,
+                                       fr->VertexBufferSize *
+                                           sizeof(VertexAttributes));
+
+  int m_indexCount = static_cast<int>(g_vertexData.size());
+  wgpuRenderPassEncoderSetIndexBuffer(
+      pass_encoder, fr->IndexBuffer,
+      sizeof(ImDrawIdx) == 2 ? WGPUIndexFormat_Uint16 : WGPUIndexFormat_Uint32,
+      0, m_indexCount);
+
+  wgpuRenderPassEncoderSetPipeline(pass_encoder, g_pipelineState);
+
+  // NOTE: CommonBindGroup = MyUniforms + sampler + texture +
+  // lightingMyUniforms
+  wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0,
+                                    g_resources.CommonBindGroup, 0, nullptr);
+
+  wgpuRenderPassEncoderSetBindGroup(pass_encoder, 1, g_resources.ImageBindGroup,
+                                    0, nullptr);
+  // Setup blend factor
+  WGPUColor blend_color = {0.f, 0.f, 0.f, 0.f};
+  wgpuRenderPassEncoderSetBlendConstant(pass_encoder, &blend_color);
+
+  // Draw finally
+  wgpuRenderPassEncoderDraw(pass_encoder, m_indexCount, 1, 0, 0);
 }
 
 // TODO: render data functions goes here
@@ -406,6 +455,7 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
       ((char *)vtx_dst - (char *)fr->VertexBufferHost + 3) & ~3;
   int64_t ib_write_size =
       ((char *)idx_dst - (char *)fr->IndexBufferHost + 3) & ~3;
+  // NOTE: maybe insert object mesh here?
   wgpuQueueWriteBuffer(g_defaultQueue, fr->VertexBuffer, 0,
                        fr->VertexBufferHost, vb_write_size);
   wgpuQueueWriteBuffer(g_defaultQueue, fr->IndexBuffer, 0, fr->IndexBufferHost,
@@ -421,6 +471,7 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
   ImVec2 clip_scale = draw_data->FramebufferScale;
   ImVec2 clip_off = draw_data->DisplayPos;
   for (int n = 0; n < draw_data->CmdListsCount; n++) {
+    // NOTE: Start from fist cmd_list, update image bindgroup by draw command
     const ImDrawList *cmd_list = draw_data->CmdLists[n];
     for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++) {
       const ImDrawCmd *pcmd = &cmd_list->CmdBuffer[cmd_i];
@@ -435,7 +486,7 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
       } else {
 #define EFWMC_BIND_GROUP
 #ifdef EFWMC_BIND_GROUP
-        // FIXME: uncompatible bindgroup
+        // NOTE: Render custom texture, sent by frame cmdlist aka ImDrawCmds
         ImTextureID tex_id = pcmd->GetTexID();
         ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
         auto bind_group = g_resources.ImageBindGroups.GetVoidPtr(tex_id_hash);
@@ -479,6 +530,8 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
                                          0);
       }
     }
+    // NOTE: end fist cmd_list, global_vtx_offset move forward by
+    // cmd_list->VtxBuffer.Size
     global_idx_offset += cmd_list->IdxBuffer.Size;
     global_vtx_offset += cmd_list->VtxBuffer.Size;
   }
@@ -585,7 +638,7 @@ bool ImGui_ImplWGPU_CreateDeviceObjects() {
   if (g_pipelineState)
     ImGui_ImplWGPU_InvalidateDeviceObjects();
 
-  // Create render pipeline
+  // NOTE: Create render pipeline
   WGPURenderPipelineDescriptor graphics_pipeline_desc{};
   graphics_pipeline_desc.primitive.topology =
       WGPUPrimitiveTopology_TriangleList;
@@ -623,7 +676,7 @@ bool ImGui_ImplWGPU_CreateDeviceObjects() {
   common_bg_layout_desc.entryCount = 4;
   common_bg_layout_desc.entries = common_bg_layout_entries;
 
-  // FIXME: image bg layout
+  // NOTE: image bg layout, for font textureview and custom textureview
   WGPUBindGroupLayoutEntry image_bg_layout_entries[1] = {};
   image_bg_layout_entries[0].binding = 0;
   image_bg_layout_entries[0].visibility = WGPUShaderStage_Fragment;
@@ -652,12 +705,13 @@ bool ImGui_ImplWGPU_CreateDeviceObjects() {
   // Vertex input configuration, in array instead of vector
   WGPUVertexAttribute attribute_desc[] = {
       {WGPUVertexFormat_Float32x3,
-       (uint64_t)offsetof(VertexAttributes, position), 0},
+       (uint64_t)offsetof(VertexAttributes, position), 0}, // vec3
       {WGPUVertexFormat_Float32x3, (uint64_t)offsetof(VertexAttributes, normal),
-       1},
+       1}, // vec3
       {WGPUVertexFormat_Float32x3, (uint64_t)offsetof(VertexAttributes, color),
-       2},
-      {WGPUVertexFormat_Float32x2, (uint64_t)offsetof(VertexAttributes, uv), 3},
+       2}, // vec3
+      {WGPUVertexFormat_Float32x2, (uint64_t)offsetof(VertexAttributes, uv),
+       3}, // vec2
   };
 
   WGPUVertexBufferLayout buffer_layouts[1];
@@ -714,7 +768,7 @@ bool ImGui_ImplWGPU_CreateDeviceObjects() {
   g_pipelineState =
       wgpuDeviceCreateRenderPipeline(g_wgpuDevice, &graphics_pipeline_desc);
 
-  // NOTE: Create buffers
+  // NOTE: Create buffers for uniforms, font and sampler
   ImGui_ImplWGPU_CreateFontsTexture();
 
   ImGui_ImplWGPU_CreateUniformBuffer();
@@ -725,20 +779,16 @@ bool ImGui_ImplWGPU_CreateDeviceObjects() {
   TextureView textureView = nullptr;
   ResourceManager::loadTexture(RESOURCE_DIR "/fourareen2K_albedo.jpg",
                                g_wgpuDevice, &textureView);
-  // auto image_bind_group = ImGui_ImplWGPU_CreateImageBindGroup(
-  //     g_resources.ImageBindGroupLayout, textureView);
-  // g_resources.ImageBindGroups.SetVoidPtr(
-  //     ImHashData(&textureView, sizeof(ImTextureID)), image_bind_group);
 
   // Create resource bind group
   WGPUBindGroupEntry common_bg_entries[] = {
-      // : mvp and misc uMyUniforms
+      // mvp and misc uMyUniforms
       {nullptr, 0, g_resources.MyUniforms, 0, sizeof(MyUniforms), 0, 0},
-      // : sampler bind_group entry here
+      // sampler bind_group entry here
       {nullptr, 1, 0, 0, 0, g_resources.Sampler, 0},
-      // :texture bind_group entry here
+      // texture bind_group entry here
       {nullptr, 2, 0, 0, 0, 0, (WGPUTextureView)textureView},
-      // :lightingMyUniforms
+      // lightingMyUniforms
       {nullptr, 3, g_resources.LightingUniforms, 0, sizeof(LightingUniforms), 0,
        0},
   };
@@ -753,14 +803,14 @@ bool ImGui_ImplWGPU_CreateDeviceObjects() {
   cout << "[efwmc] Creating CommonBindGroup!" << g_resources.CommonBindGroup
        << endl;
 
-  // FIXME: image bind group
+  // NOTE: image bind group
   WGPUBindGroup image_bind_group = ImGui_ImplWGPU_CreateImageBindGroup(
       bg_layouts[1], g_resources.FontTextureView);
   g_resources.ImageBindGroup = image_bind_group;
   cout << "[efwmc] Creating ImageBindGroup!" << g_resources.ImageBindGroup
        << endl;
   g_resources.ImageBindGroupLayout = bg_layouts[1];
-  // FIXME: here add image bg to storage
+  // NOTE: here add image bg to storage, with hashed key
   g_resources.ImageBindGroups.SetVoidPtr(
       ImHashData(&g_resources.FontTextureView, sizeof(ImTextureID)),
       image_bind_group);

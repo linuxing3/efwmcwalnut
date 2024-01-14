@@ -25,6 +25,7 @@ void ImGui_ImplWGPU_NewFrame();
 void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
                                    WGPURenderPassEncoder pass_encoder);
 
+void ImGui_ImplWGPU_RenderCustomData(WGPURenderPassEncoder pass_encoder);
 // Use if you want to reset your rendering device without losing Dear ImGui
 // state.
 void ImGui_ImplWGPU_InvalidateDeviceObjects();
@@ -32,15 +33,10 @@ bool ImGui_ImplWGPU_CreateDeviceObjects();
 
 // NOTE: Expose some global variables
 static std::vector<VertexAttributes> g_vertexData;
-void SetVertexData(std::vector<VertexAttributes> data) { g_vertexData = data; };
 
 static LightingUniforms g_lightingUniforms;
-void SetLightingUniforms(LightingUniforms &&data) {
-  g_lightingUniforms = data;
-};
 
 static MyUniforms g_uniforms;
-void SetMyUniforms(MyUniforms &&data) { g_uniforms = data; };
 
 WGPURenderPipeline GetGlobalPipelineState();
 RenderResources *GetGResources();
