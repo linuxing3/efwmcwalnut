@@ -25,6 +25,7 @@
  */
 
 #include "Application.h"
+#include "ImGui/efwmc_wgpu_backend.h"
 #include "ResourceManager.h"
 
 #define WEBGPU_BACKEND_WGPU

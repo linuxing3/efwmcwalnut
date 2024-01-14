@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include "Common.h"
 #include "Layer.h"
 #include "ResourceManager.h"
 
@@ -36,7 +37,6 @@
 
 #include <glm/glm.hpp>
 
-#include <array>
 #include <filesystem>
 
 using namespace wgpu;
@@ -152,17 +152,6 @@ private:
   Buffer m_vertexBuffer = nullptr;
   int m_indexCount;
 
-  // @group(0) @binding(0) var<uniform> uMyUniforms : MyUniforms;
-  struct MyUniforms {
-    mat4x4 projectionMatrix;
-    mat4x4 viewMatrix;
-    mat4x4 modelMatrix;
-    vec4 color;
-    vec3 cameraWorldPosition;
-    float time;
-  };
-  static_assert(sizeof(MyUniforms) % 16 == 0);
-
   Buffer m_uniformBuffer = nullptr;
   MyUniforms m_uniforms;
 
@@ -177,52 +166,10 @@ private:
   Texture m_depthTexture = nullptr;
   TextureView m_depthTextureView = nullptr;
 
-  // @group(0) @binding(3) var<uniform> uLighting : LightingUniforms;
-  struct LightingUniforms {
-    array<vec4, 2> directions;
-    array<vec4, 2> colors;
-    float hardness;
-    float kd;
-    float ks;
-    float _pad;
-  };
-  static_assert(sizeof(LightingUniforms) % 16 == 0);
   LightingUniforms m_lightingUniforms;
   Buffer m_lightingUniformBuffer = nullptr;
   bool m_lightingUniformsChanged = false;
   // --------------------------------------------------------
-
-  // --------------------------------------------------------
-  // Camera & Animation control
-  // --------------------------------------------------------
-  struct CameraState {
-    // angles.x is the rotation of the camera around the global vertical axis,
-    // affected by mouse.x angles.y is the rotation of the camera around its
-    // local horizontal axis, affected by mouse.y
-    vec2 angles = {0.8f, 0.5f};
-    // zoom is the position of the camera along its local forward axis, affected
-    // by the scroll wheel
-    float zoom = -1.2f;
-  };
-
-  struct DragState {
-    // Whether a drag action is ongoing (i.e., we are between mouse press and
-    // mouse release)
-    bool active = false;
-    // The position of the mouse at the beginning of the drag action
-    vec2 startMouse;
-    // The camera state at the beginning of the drag action
-    CameraState startCameraState;
-
-    // Constant settings
-    float sensitivity = 0.01f;
-    float scrollSensitivity = 0.1f;
-
-    // Inertia
-    vec2 velocity = {0.0, 0.0};
-    vec2 previousDelta;
-    float intertia = 0.9f;
-  };
 
   CameraState m_cameraState;
   DragState m_drag;
