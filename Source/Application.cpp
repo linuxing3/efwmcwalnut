@@ -47,19 +47,18 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/polar_coordinates.hpp>
 
-// TODO: some
+#ifdef EFWMC_BACKENDS
 #include "ImGui/efwmc_wgpu_backend.h"
+using namespace efwmc;
+#else
+#include "ImGui/imgui_impl_wgpu.h"
+#endif
 #include "ImGui/imgui_impl_glfw.h"
-// #include "ImGui/imgui_impl_wgpu.h"
 #include <imgui.h>
 
 #include <array>
-#include <cassert>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
-#include <sstream>
-#include <string>
 
 // Emedded font
 #include "ImGui/Roboto-Bold.embed"
@@ -73,7 +72,6 @@ static Application *s_Instance;
 
 constexpr float PI = 3.14159265358979323846f;
 
-using namespace efwmc;
 using namespace wgpu;
 using VertexAttributes = ResourceManager::VertexAttributes;
 using glm::mat4x4;
