@@ -26,6 +26,14 @@ struct RenderResources {
   // without font texture bind group
   WGPUBindGroup CommonBindGroup; // Resources bind-group to bind the common
                                  // resources to pipeline
+  ImGuiStorage
+      ImageBindGroups; // Resources bind-group to bind the font/image resources
+                       // to pipeline (this is a key->value map)
+  WGPUBindGroup ImageBindGroup; // Default font-resource of Dear ImGui
+  WGPUBindGroupLayout
+      ImageBindGroupLayout; // Cache layout used for the image bind group.
+                            // Avoids allocating unnecessary JS objects when
+                            // working with WebASM
 };
 
 struct FrameResources {
@@ -36,8 +44,6 @@ struct FrameResources {
   int IndexBufferSize;
   int VertexBufferSize;
 };
-
-constexpr float PI = 3.14159265358979323846f;
 
 using namespace std;
 using namespace wgpu;

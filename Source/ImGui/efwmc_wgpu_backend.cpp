@@ -1,17 +1,18 @@
 #pragma once
 #include "efwmc_wgpu_backend.h"
-#include "ResourceManager.h"
 #include "imgui.h" // IMGUI_IMPL_API
 #include "webgpu.h"
-#include "webgpu.hpp"
 #include <climits>
 #include <cstddef>
+#include <iostream>
 
 #define GLM_FORCE_LEFT_HANDED
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtx/polar_coordinates.hpp>
+
+static constexpr float PI = 3.14159265358979323846f;
 
 // These differences of implementation should vanish as soon as WebGPU gets in
 // version 1.0 stable
@@ -35,8 +36,6 @@ static WGPUTextureFormat g_renderTargetFormat = WGPUTextureFormat_Undefined;
 static WGPUTextureFormat g_depthStencilFormat = WGPUTextureFormat_Undefined;
 
 static WGPURenderPipeline g_pipelineState = nullptr;
-
-static WGPURenderPipelineDescriptor graphics_pipeline_desc = {};
 
 static RenderResources g_resources;
 
@@ -79,17 +78,8 @@ struct MyUniforms {
 	time: f32,
 }
 
-struct LightingUniforms {
-	directions: array<vec4<f32>, 2>,
-	colors: array<vec4<f32>, 2>,
-	hardness: f32,
-	kd: f32,
-	ks: f32,
-}
-
 // Instead of the simple uTime variable, our uniform variable is a struct
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
-@group(0) @binding(3) var<uniform> uLighting: LightingUniforms;
 
 @vertex
 fn main(in: VertexInput) -> VertexOutput {
@@ -113,8 +103,29 @@ struct VertexOutput {
 	@location(3) viewDirection: vec3<f32>,
 }
 
+struct MyUniforms {
+	projectionMatrix: mat4x4<f32>,
+	viewMatrix: mat4x4<f32>,
+	modelMatrix: mat4x4<f32>,
+	color: vec4<f32>,
+	cameraWorldPosition: vec3<f32>,
+	time: f32,
+}
+
+struct LightingUniforms {
+	directions: array<vec4<f32>, 2>,
+	colors: array<vec4<f32>, 2>,
+	hardness: f32,
+	kd: f32,
+	ks: f32,
+}
+
+@group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
 @group(0) @binding(1) var textureSampler: sampler;
 @group(0) @binding(2) var baseColorTexture: texture_2d<f32>;
+@group(0) @binding(3) var<uniform> uLighting: LightingUniforms;
+
+@group(1) @binding(0) var t: texture_2d<f32>;
 
 @fragment
 fn main(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -139,7 +150,7 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 	
 	// Sample texture
-    let baseColor = textureSample(baseColorTexture, textureSampler, in.uv).rgb;
+    let baseColor = textureSample(t, textureSampler, in.uv).rgb;
 
 	// Combine texture and lighting
     let color = baseColor * uLighting.kd * diffuse + uLighting.ks * specular;
@@ -158,9 +169,6 @@ FrameResources *GetPerFrameResources() {
 WGPURenderPipeline GetGlobalPipelineState() { return g_pipelineState; };
 RenderResources *GetGResources() { return &g_resources; };
 // Predefined functions
-static void
-ImGui_ImplGPU_RecreateCommonBindGroup(WGPUBindGroupEntry common_bg_entries[]);
-
 static WGPUBindGroup
 ImGui_ImplWGPU_CreateImageBindGroup(WGPUBindGroupLayout layout,
                                     WGPUTextureView texture);
@@ -174,8 +182,6 @@ static void ImGui_ImplWGPU_CreateFontsTexture();
 static void ImGui_ImplWGPU_CreateUniformBuffer();
 
 static void ImGui_ImplWGPU_CreateLightUniformBuffer();
-
-static void ImGui_ImplWGPU_LoadObjToVertexBuffer();
 
 // Drop functions
 static void SafeRelease(ImDrawIdx *&res) {
@@ -239,7 +245,12 @@ static void SafeRelease(RenderResources &res) {
   SafeRelease(res.FontTextureView);
   SafeRelease(res.Sampler);
   SafeRelease(res.MyUniforms);
+  SafeRelease(res.LightingUniforms);
+
   SafeRelease(res.CommonBindGroup);
+
+  SafeRelease(res.ImageBindGroup);
+  SafeRelease(res.ImageBindGroupLayout);
 };
 
 static void SafeRelease(FrameResources &res) {
@@ -284,6 +295,40 @@ ImGui_ImplWGPU_CreateImageBindGroup(WGPUBindGroupLayout layout,
 static void ImGui_ImplWGPU_SetupRenderState(ImDrawData *draw_data,
                                             WGPURenderPassEncoder ctx,
                                             FrameResources *fr) {
+  // FIXME: need to setup MyUniform and LightingUniforms buffers
+  {
+
+    // Upload the initial value of the uniforms
+    MyUniforms m_uniforms;
+    m_uniforms.time = 1.0f;
+    m_uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
+
+    // Matrices
+    m_uniforms.modelMatrix = mat4x4(1.0);
+    m_uniforms.viewMatrix =
+        glm::lookAt(vec3(-2.0f, -3.0f, 2.0f), vec3(0.0f), vec3(0, 0, 1));
+    m_uniforms.projectionMatrix =
+        glm::perspective(45 * PI / 180, 640.0f / 480.0f, 0.01f, 100.0f);
+
+    wgpuQueueWriteBuffer(g_defaultQueue, g_resources.MyUniforms, 0, &m_uniforms,
+                         sizeof(MyUniforms));
+  }
+
+  {
+
+    LightingUniforms m_lightingUniforms;
+    // Upload the initial value of the uniforms
+    m_lightingUniforms.directions = {vec4{0.5, -0.9, 0.1, 0.0},
+                                     vec4{0.2, 0.4, 0.3, 0.0}};
+    m_lightingUniforms.colors = {vec4{1.0, 0.9, 0.6, 1.0},
+                                 vec4{0.6, 0.9, 1.0, 1.0}};
+    m_lightingUniforms.hardness = 16.0f;
+    m_lightingUniforms.kd = 1.0f;
+    m_lightingUniforms.ks = 0.5f;
+    wgpuQueueWriteBuffer(g_defaultQueue, g_resources.LightingUniforms, 0,
+                         &m_lightingUniforms, sizeof(LightingUniforms));
+  }
+
   // Setup viewport
   wgpuRenderPassEncoderSetViewport(
       ctx, 0, 0, draw_data->FramebufferScale.x * draw_data->DisplaySize.x,
@@ -300,9 +345,12 @@ static void ImGui_ImplWGPU_SetupRenderState(ImDrawData *draw_data,
 
   wgpuRenderPassEncoderSetPipeline(ctx, g_pipelineState);
 
-  // NOTE: CommonBindGroup = MyUniforms + sampler + texture + lightingMyUniforms
+  // FIXME: CommonBindGroup = MyUniforms + sampler + texture +
+  // lightingMyUniforms
   wgpuRenderPassEncoderSetBindGroup(ctx, 0, g_resources.CommonBindGroup, 0,
                                     nullptr);
+  std::cout << "[efwmc] Set CommonBindGroup: " << g_resources.CommonBindGroup
+            << std::endl;
 
   // Setup blend factor
   WGPUColor blend_color = {0.f, 0.f, 0.f, 0.f};
@@ -382,7 +430,6 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
   wgpuQueueWriteBuffer(g_defaultQueue, fr->IndexBuffer, 0, fr->IndexBufferHost,
                        ib_write_size);
 
-  // NOTE: Setup desired render state, bind common group from init
   ImGui_ImplWGPU_SetupRenderState(draw_data, pass_encoder, fr);
 
   // Render command lists
@@ -405,22 +452,30 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
         else
           pcmd->UserCallback(cmd_list, pcmd);
       } else {
+#define EFWMC_BIND_GROUP
+#ifdef EFWMC_BIND_GROUP
+        // FIXME: uncompatible bindgroup
         ImTextureID tex_id = pcmd->GetTexID();
-        WGPUBindGroupEntry common_bg_entries[] = {
-            // : mvp and misc uMyUniforms
-            {nullptr, 0, g_resources.MyUniforms, 0, sizeof(MyUniforms), 0, 0},
-            // : sampler bind_group entry here
-            {nullptr, 1, 0, 0, 0, g_resources.Sampler, 0},
-            // :texture bind_group entry here
-            {nullptr, 2, 0, 0, 0, 0, (WGPUTextureView)tex_id},
-            // :lightingMyUniforms
-            {nullptr, 3, g_resources.LightingUniforms, 0,
-             sizeof(LightingUniforms), 0, 0},
-        };
-
-        ImGui_ImplGPU_RecreateCommonBindGroup(common_bg_entries);
-        wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0,
-                                          g_resources.CommonBindGroup, 0, 0);
+        ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
+        auto bind_group = g_resources.ImageBindGroups.GetVoidPtr(tex_id_hash);
+        if (bind_group) {
+          wgpuRenderPassEncoderSetBindGroup(
+              pass_encoder, 1, (WGPUBindGroup)bind_group, 0, nullptr);
+          std::cout << "[efwmc] Got ImageBindGroup, setting directly: "
+                    << bind_group << std::endl;
+        } else {
+          WGPUBindGroup image_bind_group = ImGui_ImplWGPU_CreateImageBindGroup(
+              g_resources.ImageBindGroupLayout, (WGPUTextureView)tex_id);
+          g_resources.ImageBindGroups.SetVoidPtr(tex_id_hash, image_bind_group);
+          wgpuRenderPassEncoderSetBindGroup(pass_encoder, 1, image_bind_group,
+                                            0, nullptr);
+          std::cout << "[efwmc] No ImageBindGroup, created and set: "
+                    << image_bind_group << std::endl;
+        }
+#else
+        wgpuRenderPassEncoderSetBindGroup(
+            pass_encoder, 0, g_resources.CommonBindGroup, 0, nullptr);
+#endif
 
         // Project scissor/clipping rectangles into framebuffer space
         ImVec2 clip_min((pcmd->ClipRect.x - clip_off.x) * clip_scale.x,
@@ -435,6 +490,8 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
             pass_encoder, (uint32_t)clip_min.x, (uint32_t)clip_min.y,
             (uint32_t)(clip_max.x - clip_min.x),
             (uint32_t)(clip_max.y - clip_min.y));
+
+        // Draw finally
         wgpuRenderPassEncoderDrawIndexed(pass_encoder, pcmd->ElemCount, 1,
                                          pcmd->IdxOffset + global_idx_offset,
                                          pcmd->VtxOffset + global_vtx_offset,
@@ -530,17 +587,33 @@ static void ImGui_ImplWGPU_CreateUniformBuffer() {
   g_resources.MyUniforms = wgpuDeviceCreateBuffer(g_wgpuDevice, &ub_desc);
 }
 
-// FIXME: light uniform buffer
+// light uniform buffer
 static void ImGui_ImplWGPU_CreateLightUniformBuffer() {
   WGPUBufferDescriptor ub_desc = {nullptr, "Dear ImGui LightUniform buffer",
                                   WGPUBufferUsage_CopyDst |
                                       WGPUBufferUsage_Uniform,
                                   (sizeof(LightingUniforms) + 3) & ~3, false};
-  g_resources.MyUniforms = wgpuDeviceCreateBuffer(g_wgpuDevice, &ub_desc);
+  // FIXME: LightingUniforms not initialized
+  g_resources.LightingUniforms = wgpuDeviceCreateBuffer(g_wgpuDevice, &ub_desc);
 }
 
-static void
-ImGui_ImplGPU_RecreateCommonBindGroup(WGPUBindGroupEntry common_bg_entries[]) {
+bool ImGui_ImplWGPU_CreateDeviceObjects() {
+  if (!g_wgpuDevice)
+    return false;
+  if (g_pipelineState)
+    ImGui_ImplWGPU_InvalidateDeviceObjects();
+
+  // Create render pipeline
+  WGPURenderPipelineDescriptor graphics_pipeline_desc{};
+  graphics_pipeline_desc.primitive.topology =
+      WGPUPrimitiveTopology_TriangleList;
+  graphics_pipeline_desc.primitive.stripIndexFormat = WGPUIndexFormat_Undefined;
+  graphics_pipeline_desc.primitive.frontFace = WGPUFrontFace_CW;
+  graphics_pipeline_desc.primitive.cullMode = WGPUCullMode_None;
+
+  graphics_pipeline_desc.multisample.count = 1;
+  graphics_pipeline_desc.multisample.mask = UINT_MAX;
+  graphics_pipeline_desc.multisample.alphaToCoverageEnabled = false;
 
   // Bind group layouts
   WGPUBindGroupLayoutEntry common_bg_layout_entries[4] = {};
@@ -568,73 +641,25 @@ ImGui_ImplGPU_RecreateCommonBindGroup(WGPUBindGroupEntry common_bg_entries[]) {
   common_bg_layout_desc.entryCount = 4;
   common_bg_layout_desc.entries = common_bg_layout_entries;
 
-  // NOTE: bg_layouts[0] = MyUniforms + sampler + textureView + LightingUniforms
-  std::array<WGPUBindGroupLayout, 1> bg_layouts{
-      wgpuDeviceCreateBindGroupLayout(g_wgpuDevice, &common_bg_layout_desc)};
+  // FIXME: image bg layout
+  WGPUBindGroupLayoutEntry image_bg_layout_entries[1] = {};
+  image_bg_layout_entries[0].binding = 0;
+  image_bg_layout_entries[0].visibility = WGPUShaderStage_Fragment;
+  image_bg_layout_entries[0].texture.sampleType = WGPUTextureSampleType_Float;
+  image_bg_layout_entries[0].texture.viewDimension =
+      WGPUTextureViewDimension_2D;
 
-  WGPUPipelineLayoutDescriptor layout_desc{.bindGroupLayoutCount = 2,
-                                           .bindGroupLayouts = &bg_layouts[0]};
+  WGPUBindGroupLayoutDescriptor image_bg_layout_desc = {};
+  image_bg_layout_desc.entryCount = 1;
+  image_bg_layout_desc.entries = image_bg_layout_entries;
 
-  // NOTE: Set pipeline descriptor
-  graphics_pipeline_desc.layout =
-      wgpuDeviceCreatePipelineLayout(g_wgpuDevice, &layout_desc);
-
-  // Create resource bind group
-  // Common bind group is in bg_layouts[0]
-  WGPUBindGroupDescriptor common_bg_descriptor = {
-      .layout = bg_layouts[0],
-      .entryCount = sizeof(common_bg_entries) / sizeof(WGPUBindGroupEntry),
-      .entries = common_bg_entries,
-  };
-
-  // NOTE: Update common bind group
-  g_resources.CommonBindGroup =
-      wgpuDeviceCreateBindGroup(g_wgpuDevice, &common_bg_descriptor);
-  wgpuBindGroupLayoutRelease(bg_layouts[0]);
-}
-
-// FIXME: light textureview buffer
-static void ImGui_ImplWGPU_LoadObjToVertexBuffer() {
-  std::vector<ResourceManager::VertexAttributes> m_vertexData;
-  Buffer m_vertexBuffer = nullptr;
-  WGPUBufferDescriptor ub_desc = {
-      nullptr, "Dear ImGui Texture buffer",
-      WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
-      (sizeof(ResourceManager::VertexAttributes) + 3) & ~3, false};
-  // [CPU] load geometry
-  bool success = ResourceManager::loadGeometryFromObj(
-      RESOURCE_DIR "/fourareen.obj", m_vertexData);
-  if (!success) {
-    std::cerr << "Could not load geometry!" << std::endl;
-  }
-
-  // [GPU] Create vertex buffer
-  BufferDescriptor bufferDesc;
-  bufferDesc.size = m_vertexData.size() * sizeof(VertexAttributes);
-  bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Vertex;
-  bufferDesc.mappedAtCreation = false;
-  m_vertexBuffer = wgpuDeviceCreateBuffer(g_wgpuDevice, &ub_desc);
-
-  int m_indexCount;
-  m_indexCount = static_cast<int>(m_vertexData.size());
-}
-
-bool ImGui_ImplWGPU_CreateDeviceObjects() {
-  if (!g_wgpuDevice)
-    return false;
-  if (g_pipelineState)
-    ImGui_ImplWGPU_InvalidateDeviceObjects();
-
-  // Create render pipeline
-  graphics_pipeline_desc.primitive.topology =
-      WGPUPrimitiveTopology_TriangleList;
-  graphics_pipeline_desc.primitive.stripIndexFormat = WGPUIndexFormat_Undefined;
-  graphics_pipeline_desc.primitive.frontFace = WGPUFrontFace_CW;
-  graphics_pipeline_desc.primitive.cullMode = WGPUCullMode_None;
-
-  graphics_pipeline_desc.multisample.count = 1;
-  graphics_pipeline_desc.multisample.mask = UINT_MAX;
-  graphics_pipeline_desc.multisample.alphaToCoverageEnabled = false;
+  WGPUBindGroupLayout bg_layouts[2] = {};
+  // FIXED: bg_layouts[0] = MyUniforms + sampler + textureView +
+  // LightingUniforms
+  bg_layouts[0] =
+      wgpuDeviceCreateBindGroupLayout(g_wgpuDevice, &common_bg_layout_desc);
+  bg_layouts[1] =
+      wgpuDeviceCreateBindGroupLayout(g_wgpuDevice, &image_bg_layout_desc);
 
   // Create the vertex shader
   WGPUProgrammableStageDescriptor vertex_shader_desc =
@@ -708,26 +733,50 @@ bool ImGui_ImplWGPU_CreateDeviceObjects() {
       wgpuDeviceCreateRenderPipeline(g_wgpuDevice, &graphics_pipeline_desc);
 
   // NOTE: Create buffers
-  ImGui_ImplWGPU_CreateUniformBuffer();
-  ImGui_ImplWGPU_CreateLightUniformBuffer();
-  // ImGui_ImplWGPU_LoadObjToVertexBuffer();
-
   ImGui_ImplWGPU_CreateFontsTexture();
+
+  ImGui_ImplWGPU_CreateUniformBuffer();
+
+  ImGui_ImplWGPU_CreateLightUniformBuffer();
+
+  // Create resource bind group
   WGPUBindGroupEntry common_bg_entries[] = {
-      // NOTE: mvp and misc uMyUniforms
+      // : mvp and misc uMyUniforms
       {nullptr, 0, g_resources.MyUniforms, 0, sizeof(MyUniforms), 0, 0},
-      // NOTE: sampler bind_group entry here
+      // : sampler bind_group entry here
       {nullptr, 1, 0, 0, 0, g_resources.Sampler, 0},
-      // NOTE: texture bind_group entry here
-      {nullptr, 2, 0, 0, 0, 0, g_resources.FontTextureView},
-      // NOTE: lightingMyUniforms
+      // :texture bind_group entry here
+      {nullptr, 2, 0, 0, 0, 0, (WGPUTextureView)g_resources.FontTextureView},
+      // :lightingMyUniforms
       {nullptr, 3, g_resources.LightingUniforms, 0, sizeof(LightingUniforms), 0,
        0},
   };
-  ImGui_ImplGPU_RecreateCommonBindGroup(common_bg_entries);
+
+  WGPUBindGroupDescriptor common_bg_descriptor{};
+  common_bg_descriptor.layout = bg_layouts[0];
+  common_bg_descriptor.entryCount =
+      sizeof(common_bg_entries) / sizeof(WGPUBindGroupEntry);
+  common_bg_descriptor.entries = common_bg_entries;
+  g_resources.CommonBindGroup =
+      wgpuDeviceCreateBindGroup(g_wgpuDevice, &common_bg_descriptor);
+  cout << "[efwmc] Creating CommonBindGroup!" << g_resources.CommonBindGroup
+       << endl;
+
+  // FIXME: image bind group
+  WGPUBindGroup image_bind_group = ImGui_ImplWGPU_CreateImageBindGroup(
+      bg_layouts[1], g_resources.FontTextureView);
+  g_resources.ImageBindGroup = image_bind_group;
+  cout << "[efwmc] Creating ImageBindGroup!" << g_resources.ImageBindGroup
+       << endl;
+  g_resources.ImageBindGroupLayout = bg_layouts[1];
+  // FIXME: here add image bg to storage
+  g_resources.ImageBindGroups.SetVoidPtr(
+      ImHashData(&g_resources.FontTextureView, sizeof(ImTextureID)),
+      image_bind_group);
 
   SafeRelease(vertex_shader_desc.module);
   SafeRelease(pixel_shader_desc.module);
+  SafeRelease(bg_layouts[0]);
 
   return true;
 }
@@ -770,7 +819,11 @@ bool ImGui_ImplWGPU_Init(WGPUDevice device, int num_frames_in_flight,
   g_resources.FontTextureView = nullptr;
   g_resources.Sampler = nullptr;
   g_resources.MyUniforms = nullptr;
+  g_resources.LightingUniforms = nullptr;
   g_resources.CommonBindGroup = nullptr;
+  g_resources.ImageBindGroups.Data.reserve(100);
+  g_resources.ImageBindGroup = nullptr;
+  g_resources.ImageBindGroupLayout = nullptr;
 
   // Create buffers with a default size (they will later be grown as needed)
   for (int i = 0; i < num_frames_in_flight; i++) {

@@ -5,7 +5,7 @@
 #include "glm/geometric.hpp"
 #include <algorithm>
 #include <cstdint>
-#include <execution>
+/* #include <execution> */
 #include <iostream>
 
 namespace Utils {
