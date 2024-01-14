@@ -329,6 +329,19 @@ static void ImGui_ImplWGPU_SetupRenderState(ImDrawData *draw_data,
                          &m_lightingUniforms, sizeof(LightingUniforms));
   }
 
+  {
+
+    // FIXME: vertex buffer without data
+    vector<VertexAttributes> m_vertexData;
+    bool success = ResourceManager::loadGeometryFromObj(
+        RESOURCE_DIR "/fourareen.obj", m_vertexData);
+    if (!success) {
+      std::cerr << "Could not load geometry!" << std::endl;
+    }
+    wgpuQueueWriteBuffer(g_defaultQueue, fr->VertexBuffer, 0, &m_vertexData,
+                         m_vertexData.size() * sizeof(VertexAttributes));
+  }
+
   // Setup viewport
   wgpuRenderPassEncoderSetViewport(
       ctx, 0, 0, draw_data->FramebufferScale.x * draw_data->DisplaySize.x,
