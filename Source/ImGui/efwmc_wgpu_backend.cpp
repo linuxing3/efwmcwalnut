@@ -28,47 +28,21 @@
 #define wgpuQueueRelease(...)
 #endif // WEBGPU_BACKEND_WGPU
 
-using VertexAttributes = ResourceManager::VertexAttributes;
-
-// Dear ImGui prototypes from imgui_internal.h
-extern ImGuiID ImHashData(const void *data_p, size_t data_size, ImU32 seed = 0);
-
 // WebGPU data
 static WGPUDevice g_wgpuDevice = nullptr;
 static WGPUQueue g_defaultQueue = nullptr;
 static WGPUTextureFormat g_renderTargetFormat = WGPUTextureFormat_Undefined;
 static WGPUTextureFormat g_depthStencilFormat = WGPUTextureFormat_Undefined;
+
 static WGPURenderPipeline g_pipelineState = nullptr;
+
 static WGPURenderPipelineDescriptor graphics_pipeline_desc = {};
 
-struct RenderResources {
-  WGPUTexture FontTexture;         // Font texture
-  WGPUTextureView FontTextureView; // Texture view for font texture
-  WGPUSampler Sampler;             // Sampler for the font texture
-  // NOTE: default is mvp+gamma, changed to m, v, p, time
-  WGPUBuffer MyUniforms; // Shader uniforms my uniforms
-  // NOTE: lighting uniforms
-  WGPUBuffer LightingUniforms; // Shader uniforms lighting
-  // NOTE: bg_layouts[0] = MyUniform + sampler + texture + LightingUniforms,
-  // without font texture bind group
-  WGPUBindGroup CommonBindGroup; // Resources bind-group to bind the common
-                                 // resources to pipeline
-};
 static RenderResources g_resources;
 
-struct FrameResources {
-  WGPUBuffer IndexBuffer;
-  WGPUBuffer VertexBuffer;
-  ImDrawIdx *IndexBufferHost;
-  VertexAttributes *VertexBufferHost;
-  int IndexBufferSize;
-  int VertexBufferSize;
-};
 static FrameResources *g_pFrameResources = nullptr;
 static unsigned int g_numFramesInFlight = 0;
 static unsigned int g_frameIndex = UINT_MAX;
-
-constexpr float PI = 3.14159265358979323846f;
 
 using namespace wgpu;
 using glm::mat4x4;
@@ -76,27 +50,6 @@ using glm::vec2;
 using glm::vec3;
 using glm::vec4;
 
-// @group(0) @binding(0) var<uniform> uMyUniforms : MyUniforms;
-struct MyUniforms {
-  mat4x4 projectionMatrix;
-  mat4x4 viewMatrix;
-  mat4x4 modelMatrix;
-  vec4 color;
-  vec3 cameraWorldPosition;
-  float time;
-};
-static_assert(sizeof(MyUniforms) % 16 == 0);
-
-// @group(0) @binding(3) var<uniform> uLighting : LightingUniforms;
-struct LightingUniforms {
-  std::array<vec4, 2> directions;
-  std::array<vec4, 2> colors;
-  float hardness;
-  float kd;
-  float ks;
-  float _pad;
-};
-static_assert(sizeof(LightingUniforms) % 16 == 0);
 //-----------------------------------------------------------------------------
 // SHADERS
 //-----------------------------------------------------------------------------
@@ -197,6 +150,13 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 )";
 
+namespace efwmc {
+
+FrameResources *GetPerFrameResources() {
+  return &g_pFrameResources[g_frameIndex % g_numFramesInFlight];
+};
+WGPURenderPipeline GetGlobalPipelineState() { return g_pipelineState; };
+RenderResources *GetGResources() { return &g_resources; };
 // Predefined functions
 static void
 ImGui_ImplGPU_RecreateCommonBindGroup(WGPUBindGroupEntry common_bg_entries[]);
@@ -324,45 +284,6 @@ ImGui_ImplWGPU_CreateImageBindGroup(WGPUBindGroupLayout layout,
 static void ImGui_ImplWGPU_SetupRenderState(ImDrawData *draw_data,
                                             WGPURenderPassEncoder ctx,
                                             FrameResources *fr) {
-  // TODO: Setup mvpct into our constant buffer
-  {
-    MyUniforms m_uniforms;
-    // Upload the initial value of the uniforms
-    m_uniforms.time = 1.0f;
-    m_uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
-
-    // Matrices
-    m_uniforms.modelMatrix = {
-        {1.0, 0.0, 0.0, 0.0},
-        {1.0, 1.0, 0.0, 0.0},
-        {1.0, 0.0, 1.0, 0.0},
-        {1.0, 0.0, 0.0, 1.0},
-    };
-    m_uniforms.viewMatrix =
-        glm::lookAt(vec3(-2.0f, -3.0f, 2.0f), vec3(0.0f), vec3(0, 0, 1));
-    m_uniforms.projectionMatrix =
-        glm::perspective(45 * PI / 180, 640.0f / 480.0f, 0.01f, 100.0f);
-
-    wgpuQueueWriteBuffer(g_defaultQueue, g_resources.MyUniforms, 0, &m_uniforms,
-                         sizeof(MyUniforms));
-  }
-
-  // TODO: Setup lighting matrix into our constant buffer
-  {
-
-    LightingUniforms m_lightingUniforms;
-    // Upload the initial value of the uniforms
-    m_lightingUniforms.directions = {vec4{0.5, -0.9, 0.1, 0.0},
-                                     vec4{0.2, 0.4, 0.3, 0.0}};
-    m_lightingUniforms.colors = {vec4{1.0, 0.9, 0.6, 1.0},
-                                 vec4{0.6, 0.9, 1.0, 1.0}};
-    m_lightingUniforms.hardness = 16.0f;
-    m_lightingUniforms.kd = 1.0f;
-    m_lightingUniforms.ks = 0.5f;
-    wgpuQueueWriteBuffer(g_defaultQueue, g_resources.LightingUniforms, 0,
-                         &m_lightingUniforms, sizeof(LightingUniforms));
-  }
-
   // Setup viewport
   wgpuRenderPassEncoderSetViewport(
       ctx, 0, 0, draw_data->FramebufferScale.x * draw_data->DisplaySize.x,
@@ -879,3 +800,4 @@ void ImGui_ImplWGPU_NewFrame() {
   if (!g_pipelineState)
     ImGui_ImplWGPU_CreateDeviceObjects();
 }
+}; // namespace efwmc

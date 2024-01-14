@@ -1,5 +1,6 @@
 #include "Application.h"
 
+#include "ResourceManager.h"
 #include "Walnut/Image.h"
 #include "Walnut/Timer.h"
 
@@ -11,6 +12,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 #include <memory>
+#include <vector>
 
 using namespace Walnut;
 
@@ -61,6 +63,7 @@ public:
   virtual void OnUpdate(float ts) override { m_Camera.OnUpdate(ts); }
 
   virtual void OnUIRender() override {
+
     ImGui::Begin("Settings");
     ImGui::Text("Last render: %.3fms", m_LastRenderTime);
     if (ImGui::Button("Render")) {

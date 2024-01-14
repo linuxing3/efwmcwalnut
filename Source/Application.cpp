@@ -67,9 +67,10 @@
 // NOTE: Singleton design pattern
 static Application *s_Instance;
 
-constexpr float PI = 3.14159265358979323846f;
+/* constexpr float PI = 3.14159265358979323846f; */
 
 using namespace wgpu;
+using namespace efwmc;
 using VertexAttributes = ResourceManager::VertexAttributes;
 using glm::mat4x4;
 using glm::vec2;
@@ -199,6 +200,7 @@ void Application::buildRenderPipeline() {
   bufferDesc.size = m_vertexData.size() * sizeof(VertexAttributes);
   bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Vertex;
   bufferDesc.mappedAtCreation = false;
+
   m_vertexBuffer = m_device.createBuffer(bufferDesc);
   queue.writeBuffer(m_vertexBuffer, 0, m_vertexData.data(), bufferDesc.size);
 
@@ -222,6 +224,9 @@ void Application::buildRenderPipeline() {
       glm::perspective(45 * PI / 180, 640.0f / 480.0f, 0.01f, 100.0f);
 
   queue.writeBuffer(m_uniformBuffer, 0, &m_uniforms, sizeof(MyUniforms));
+  // FIXME: write to imgui
+  queue.writeBuffer(GetGResources()->MyUniforms, 0, &m_uniforms,
+                    sizeof(MyUniforms));
   updateViewMatrix();
 
   // [GPU] Create depth buffer
@@ -527,11 +532,12 @@ void Application::onFrame() {
     s_Instance->Get()->m_currentTextureView = nextTexture;
 
     auto command = RunSingleCommand([&](RenderPassEncoder renderPass) {
-      renderPass.setPipeline(m_pipeline);
-      renderPass.setVertexBuffer(
-          0, m_vertexBuffer, 0, m_vertexData.size() * sizeof(VertexAttributes));
-      renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
-      renderPass.draw(m_indexCount, 1, 0, 0);
+      // renderPass.setPipeline(m_pipeline);
+      // renderPass.setVertexBuffer(
+      //     0, m_vertexBuffer, 0, m_vertexData.size() *
+      //     sizeof(VertexAttributes));
+      // renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
+      // renderPass.draw(m_indexCount, 1, 0, 0);
 
       for (auto layer : m_LayerStack) {
         layer->OnUpdate(m_uniforms.time);
@@ -721,10 +727,18 @@ void Application::updateViewMatrix() {
   m_device.getQueue().writeBuffer(
       m_uniformBuffer, offsetof(MyUniforms, viewMatrix), &m_uniforms.viewMatrix,
       sizeof(MyUniforms::viewMatrix));
+  // FIXME: write to imgui
+  m_device.getQueue().writeBuffer(
+      GetGResources()->MyUniforms, offsetof(MyUniforms, viewMatrix),
+      &m_uniforms.viewMatrix, sizeof(MyUniforms::viewMatrix));
 
   m_uniforms.cameraWorldPosition = position;
   m_device.getQueue().writeBuffer(
       m_uniformBuffer, offsetof(MyUniforms, cameraWorldPosition),
+      &m_uniforms.cameraWorldPosition, sizeof(MyUniforms::cameraWorldPosition));
+  // FIXME: write to imgui
+  m_device.getQueue().writeBuffer(
+      GetGResources()->MyUniforms, offsetof(MyUniforms, cameraWorldPosition),
       &m_uniforms.cameraWorldPosition, sizeof(MyUniforms::cameraWorldPosition));
 }
 
