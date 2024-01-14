@@ -1,8 +1,6 @@
 #include "Image.h"
 
 #include "Application.h"
-#include "ResourceManager.h"
-#include "backends/imgui_impl_vulkan.h"
 
 #include "vulkan/vulkan_core.h"
 #include <cstdint>

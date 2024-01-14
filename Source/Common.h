@@ -2,7 +2,6 @@
 #include "ResourceManager.h"
 #include "imgui.h"
 #include <cstdint>
-#include <vector>
 #include <webgpu.hpp>
 
 #include <glm/glm.hpp>
@@ -100,4 +99,22 @@ struct FrameResources {
   VertexAttributes *VertexBufferHost;
   int IndexBufferSize;
   int VertexBufferSize;
+};
+
+struct ApplicationSpecification {
+  std::string Name = "Walnut App";
+  uint32_t Width = 1600;
+  uint32_t Height = 900;
+
+  std::filesystem::path IconPath;
+
+  bool WindowResizeable = true;
+
+  // Uses custom Walnut titlebar instead
+  // of Windows default
+  bool CustomTitlebar = true;
+
+  // Window will be created in the center
+  // of primary monitor
+  bool CenterWindow = true;
 };

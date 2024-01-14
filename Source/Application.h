@@ -29,9 +29,11 @@
 #include "Common.h"
 #include "Layer.h"
 #include "ResourceManager.h"
+#include "Walnut/Image.h"
 
 #include <GLFW/glfw3.h>
 #include <cstdint>
+#include <queue>
 #include <vector>
 #include <webgpu.hpp>
 
@@ -71,7 +73,8 @@ public:
   Device GetDevice() { return m_device; };
   Queue GetQueue() { return m_device.getQueue(); };
 
-  GLFWwindow *GetWindowHandle() { return m_window; };
+  bool IsMaximized() const;
+  GLFWwindow *GetWindowHandle() { return m_WindowHandle; };
 
   TextureView GetCurrentTextureView() { return m_currentTextureView; }
   TextureView GetCurrentDepthView() { return m_depthTextureView; }
@@ -109,6 +112,7 @@ private:
 
   void initComputeBuffers();
   void terminateBuffers();
+  void UI_DrawMenubar();
 
 private:
   using vec2 = glm::vec2;
@@ -119,7 +123,6 @@ private:
   TextureFormat m_depthTextureFormat = TextureFormat::Depth32Float;
 
   // Everything that is initialized in `onInit` and needed in `onFrame`.
-  GLFWwindow *m_window = nullptr;
   Instance m_instance = nullptr;
   Surface m_surface = nullptr;
   Device m_device = nullptr;
@@ -177,7 +180,41 @@ private:
 
   unique_ptr<ErrorCallback> m_uncapturedErrorCallback;
 
+  GLFWwindow *m_WindowHandle = nullptr;
+  bool m_TitleBarHovered = false;
+  void UI_DrawTitlebar(float &outTitlebarHeight);
+
+  std::function<void()> m_MenubarCallback;
+
+  std::mutex m_EventQueueMutex;
+  std::queue<std::function<void()>> m_EventQueue;
+
+  // Resources
+  // TODO(Yan): move out of application class since this can't be tied
+  //            to application lifetime
+  std::shared_ptr<Walnut::Image> m_AppHeaderIcon;
+  std::shared_ptr<Walnut::Image> m_IconClose;
+  std::shared_ptr<Walnut::Image> m_IconMinimize;
+  std::shared_ptr<Walnut::Image> m_IconMaximize;
+  std::shared_ptr<Walnut::Image> m_IconRestore;
+
+  std::shared_ptr<Walnut::Image> GetApplicationIcon() const {
+    return m_AppHeaderIcon;
+  }
+
+  void Close();
+  float GetTime();
+  GLFWwindow *GetWindowHandle() const { return m_WindowHandle; }
+  bool IsTitleBarHovered() const { return m_TitleBarHovered; }
+
+  static ImFont *GetFont(const std::string &name);
+
+  template <typename Func> void QueueEvent(Func &&func) {
+    m_EventQueue.push(func);
+  }
+
 public:
+  ApplicationSpecification m_Specification;
   vector<shared_ptr<Walnut::Layer>> m_LayerStack;
 
   template <typename T> void PushLayer() {

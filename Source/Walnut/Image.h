@@ -1,11 +1,9 @@
 #pragma once
-#include <iostream>
 #include <string>
 #include <string_view>
 
-#include "Application.h"
 #include "imgui.h"
-#include "vulkan/vulkan.h"
+#include "vulkan/vulkan_core.h"
 
 #include <webgpu.hpp>
 
