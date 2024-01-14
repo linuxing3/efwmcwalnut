@@ -7,6 +7,7 @@ if not has_config('feature') then
     add_requires('glfw3webgpu')
     add_requires('imgui-walnut walnut', { configs = { glfw = true, vulkan = true, wgpu = true } })
     add_requires('glfw-walnut walnut', { configs = { glfw_include = 'vulkan' } })
+    add_requires('spdlog')
 end
 
 target('wgpuapp')
@@ -22,6 +23,7 @@ if has_config('feature') then
     add_includedirs('$(projectdir)/Source')
     add_packages('glfw-walnut', 'imgui-walnut')
 else
+    add_packages('spdlog')
     add_packages('efwmcwalnut')
     add_packages('glfw3webgpu')
     add_packages('glfw-walnut', 'imgui-walnut')

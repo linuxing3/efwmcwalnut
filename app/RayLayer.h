@@ -125,6 +125,16 @@ public:
                    ImVec2(0, 1), ImVec2(1, 0));
     }
 
+    TextureView textureView = nullptr;
+    ResourceManager::loadTexture(RESOURCE_DIR "/fourareen2K_albedo.jpg",
+                                 Application::Get()->GetDevice(), &textureView);
+    ImGui::Begin("test GetTextureId");
+    if (textureView) {
+      ImGui::Image((ImTextureID)textureView,
+                   {(float)m_ViewportWidth, (float)m_ViewportHeight});
+    }
+    ImGui::End();
+
     ImGui::End();
     ImGui::PopStyleVar();
 

@@ -28,6 +28,9 @@
 #include "ImGui/efwmc_wgpu_backend.h"
 #include "ResourceManager.h"
 
+/* #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO */
+/* #include "spdlog/spdlog.h" */
+
 #define WEBGPU_BACKEND_WGPU
 #include "glfw3webgpu.h"
 #include "webgpu.h"
@@ -133,12 +136,11 @@ void Application::buildDeviceObject() {
   }
 
   // Create surface and adapter
-  std::cout << "Requesting adapter..." << std::endl;
+  // spdlog::info("Requesting adapter...");
   m_surface = glfwGetWGPUSurface(m_instance, m_window);
   RequestAdapterOptions adapterOpts{};
   adapterOpts.compatibleSurface = m_surface;
   Adapter adapter = m_instance.requestAdapter(adapterOpts);
-  std::cout << "Got adapter: " << adapter << std::endl;
 
   std::cout << "Requesting device..." << std::endl;
   SupportedLimits supportedLimits;
@@ -163,7 +165,6 @@ void Application::buildDeviceObject() {
   deviceDesc.requiredLimits = &requiredLimits;
   deviceDesc.defaultQueue.label = "The default queue";
   m_device = adapter.requestDevice(deviceDesc);
-  std::cout << "Got device: " << m_device << std::endl;
 
   // Add an error callback for more debug info
   m_uncapturedErrorCallback = m_device.setUncapturedErrorCallback(
@@ -184,7 +185,6 @@ void Application::buildRenderPipeline() {
   // Create pipeline
 
   // [GPU] shader
-  std::cout << "Creating shader module..." << std::endl;
   ShaderModule shaderModule =
       ResourceManager::loadShaderModule(RESOURCE_DIR "/shader.wsl", m_device);
   std::cout << "Shader module: " << shaderModule << std::endl;
@@ -280,7 +280,6 @@ void Application::buildRenderPipeline() {
   /* @group(0) @binding(3) var<uniform> uLighting: LightingUniforms; */
   initLighting();
 
-  std::cout << "Creating render pipeline..." << std::endl;
   RenderPipelineDescriptor pipelineDesc{};
 
   // Vertex stage
@@ -395,7 +394,6 @@ void Application::buildSwapChain() {
   int width, height;
   glfwGetFramebufferSize(m_window, &width, &height);
 
-  std::cout << "Creating swapchain..." << std::endl;
   /* m_swapChainDesc{}; */
   m_swapChainDesc.width = (uint32_t)width;
   m_swapChainDesc.height = (uint32_t)height;
@@ -412,7 +410,6 @@ void Application::buildDepthBuffer() {
   if (m_depthTexture != nullptr)
     m_depthTexture.destroy();
 
-  std::cout << "Creating depth texture..." << std::endl;
   // Create the depth texture
   TextureDescriptor depthTextureDesc;
   depthTextureDesc.dimension = TextureDimension::_2D;

@@ -44,10 +44,6 @@ static unsigned int g_numFramesInFlight = 0;
 static unsigned int g_frameIndex = UINT_MAX;
 
 using namespace wgpu;
-using glm::mat4x4;
-using glm::vec2;
-using glm::vec3;
-using glm::vec4;
 
 //-----------------------------------------------------------------------------
 // SHADERS
@@ -168,6 +164,7 @@ FrameResources *GetPerFrameResources() {
 };
 WGPURenderPipeline GetGlobalPipelineState() { return g_pipelineState; };
 RenderResources *GetGResources() { return &g_resources; };
+
 // Predefined functions
 static WGPUBindGroup
 ImGui_ImplWGPU_CreateImageBindGroup(WGPUBindGroupLayout layout,
@@ -453,7 +450,7 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData *draw_data,
           g_resources.ImageBindGroups.SetVoidPtr(tex_id_hash, image_bind_group);
           wgpuRenderPassEncoderSetBindGroup(pass_encoder, 1, image_bind_group,
                                             0, nullptr);
-          std::cout << "[efwmc] No ImageBindGroup, created and set: "
+          std::cout << "[efwmc] No existing ImageBindGroup, created and set: "
                     << image_bind_group << std::endl;
         }
 #else
@@ -724,6 +721,15 @@ bool ImGui_ImplWGPU_CreateDeviceObjects() {
 
   ImGui_ImplWGPU_CreateLightUniformBuffer();
 
+  // load texture and create a bindgroup here
+  TextureView textureView = nullptr;
+  ResourceManager::loadTexture(RESOURCE_DIR "/fourareen2K_albedo.jpg",
+                               g_wgpuDevice, &textureView);
+  // auto image_bind_group = ImGui_ImplWGPU_CreateImageBindGroup(
+  //     g_resources.ImageBindGroupLayout, textureView);
+  // g_resources.ImageBindGroups.SetVoidPtr(
+  //     ImHashData(&textureView, sizeof(ImTextureID)), image_bind_group);
+
   // Create resource bind group
   WGPUBindGroupEntry common_bg_entries[] = {
       // : mvp and misc uMyUniforms
@@ -731,7 +737,7 @@ bool ImGui_ImplWGPU_CreateDeviceObjects() {
       // : sampler bind_group entry here
       {nullptr, 1, 0, 0, 0, g_resources.Sampler, 0},
       // :texture bind_group entry here
-      {nullptr, 2, 0, 0, 0, 0, (WGPUTextureView)g_resources.FontTextureView},
+      {nullptr, 2, 0, 0, 0, 0, (WGPUTextureView)textureView},
       // :lightingMyUniforms
       {nullptr, 3, g_resources.LightingUniforms, 0, sizeof(LightingUniforms), 0,
        0},
@@ -848,18 +854,7 @@ bool ImGui_ImplWGPU_Init(WGPUDevice device, int num_frames_in_flight,
     std::cerr << "Could not load geometry!" << std::endl;
   }
 
-  // NOTE: load texture and create a bindgroup here
-  TextureView textureView = nullptr;
-  Texture texture = ResourceManager::loadTexture(
-      RESOURCE_DIR "/fourareen2K_albedo.jpg", g_wgpuDevice, &textureView);
-  if (!texture) {
-    std::cerr << "Could not load texture!" << std::endl;
-    return false;
-  }
-  auto image_bind_group = ImGui_ImplWGPU_CreateImageBindGroup(
-      g_resources.ImageBindGroupLayout, textureView);
-  g_resources.ImageBindGroups.SetVoidPtr(
-      ImHashData(&textureView, sizeof(ImTextureID)), image_bind_group);
+  // load texture and create a bindgroup here
 
   return true;
 }
