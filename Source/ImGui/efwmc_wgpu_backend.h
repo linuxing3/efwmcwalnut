@@ -14,6 +14,7 @@
 extern ImGuiID ImHashData(const void *data_p, size_t data_size, ImU32 seed = 0);
 
 using VertexAttributes = ResourceManager::VertexAttributes;
+
 struct RenderResources {
   WGPUTexture FontTexture;         // Font texture
   WGPUTextureView FontTextureView; // Texture view for font texture
@@ -91,6 +92,10 @@ void ImGui_ImplWGPU_InvalidateDeviceObjects();
 bool ImGui_ImplWGPU_CreateDeviceObjects();
 
 // Expose some global variables
+static std::vector<VertexAttributes> g_vertexData;
+static LightingUniforms g_lightingUniforms;
+static MyUniforms g_uniforms;
+
 WGPURenderPipeline GetGlobalPipelineState();
 RenderResources *GetGResources();
 FrameResources *GetPerFrameResources();

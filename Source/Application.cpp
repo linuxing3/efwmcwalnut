@@ -530,11 +530,12 @@ void Application::onFrame() {
     s_Instance->Get()->m_currentTextureView = nextTexture;
 
     auto command = RunSingleCommand([&](RenderPassEncoder renderPass) {
-      renderPass.setPipeline(m_pipeline);
-      renderPass.setVertexBuffer(
-          0, m_vertexBuffer, 0, m_vertexData.size() * sizeof(VertexAttributes));
-      renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
-      renderPass.draw(m_indexCount, 1, 0, 0);
+      // renderPass.setPipeline(m_pipeline);
+      // renderPass.setVertexBuffer(
+      //     0, m_vertexBuffer, 0, m_vertexData.size() *
+      //     sizeof(VertexAttributes));
+      // renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
+      // renderPass.draw(m_indexCount, 1, 0, 0);
 
       for (auto layer : m_LayerStack) {
         layer->OnUpdate(m_uniforms.time);

@@ -295,51 +295,24 @@ ImGui_ImplWGPU_CreateImageBindGroup(WGPUBindGroupLayout layout,
 static void ImGui_ImplWGPU_SetupRenderState(ImDrawData *draw_data,
                                             WGPURenderPassEncoder ctx,
                                             FrameResources *fr) {
-  // FIXME: need to setup MyUniform and LightingUniforms buffers
   {
-
-    // Upload the initial value of the uniforms
-    MyUniforms m_uniforms;
-    m_uniforms.time = 1.0f;
-    m_uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
-
-    // Matrices
-    m_uniforms.modelMatrix = mat4x4(1.0);
-    m_uniforms.viewMatrix =
-        glm::lookAt(vec3(-2.0f, -3.0f, 2.0f), vec3(0.0f), vec3(0, 0, 1));
-    m_uniforms.projectionMatrix =
-        glm::perspective(45 * PI / 180, 640.0f / 480.0f, 0.01f, 100.0f);
-
-    wgpuQueueWriteBuffer(g_defaultQueue, g_resources.MyUniforms, 0, &m_uniforms,
+    // TODO: update view matrix
+    wgpuQueueWriteBuffer(g_defaultQueue, g_resources.MyUniforms, 0, &g_uniforms,
                          sizeof(MyUniforms));
   }
 
   {
 
-    LightingUniforms m_lightingUniforms;
-    // Upload the initial value of the uniforms
-    m_lightingUniforms.directions = {vec4{0.5, -0.9, 0.1, 0.0},
-                                     vec4{0.2, 0.4, 0.3, 0.0}};
-    m_lightingUniforms.colors = {vec4{1.0, 0.9, 0.6, 1.0},
-                                 vec4{0.6, 0.9, 1.0, 1.0}};
-    m_lightingUniforms.hardness = 16.0f;
-    m_lightingUniforms.kd = 1.0f;
-    m_lightingUniforms.ks = 0.5f;
+    // TODO: update lighting
     wgpuQueueWriteBuffer(g_defaultQueue, g_resources.LightingUniforms, 0,
-                         &m_lightingUniforms, sizeof(LightingUniforms));
+                         &g_lightingUniforms, sizeof(LightingUniforms));
   }
 
   {
-
-    // FIXME: vertex buffer without data
-    vector<VertexAttributes> m_vertexData;
-    bool success = ResourceManager::loadGeometryFromObj(
-        RESOURCE_DIR "/fourareen.obj", m_vertexData);
-    if (!success) {
-      std::cerr << "Could not load geometry!" << std::endl;
-    }
-    wgpuQueueWriteBuffer(g_defaultQueue, fr->VertexBuffer, 0, &m_vertexData,
-                         m_vertexData.size() * sizeof(VertexAttributes));
+    // NOTE: Need initial vertexbuffer data, otherwise will get renderpass
+    // error!
+    wgpuQueueWriteBuffer(g_defaultQueue, fr->VertexBuffer, 0, &g_vertexData,
+                         g_vertexData.size() * sizeof(VertexAttributes));
   }
 
   // Setup viewport
@@ -358,12 +331,10 @@ static void ImGui_ImplWGPU_SetupRenderState(ImDrawData *draw_data,
 
   wgpuRenderPassEncoderSetPipeline(ctx, g_pipelineState);
 
-  // FIXME: CommonBindGroup = MyUniforms + sampler + texture +
+  // NOTE: CommonBindGroup = MyUniforms + sampler + texture +
   // lightingMyUniforms
   wgpuRenderPassEncoderSetBindGroup(ctx, 0, g_resources.CommonBindGroup, 0,
                                     nullptr);
-  std::cout << "[efwmc] Set CommonBindGroup: " << g_resources.CommonBindGroup
-            << std::endl;
 
   // Setup blend factor
   WGPUColor blend_color = {0.f, 0.f, 0.f, 0.f};
@@ -577,6 +548,7 @@ static void ImGui_ImplWGPU_CreateFontsTexture() {
     sampler_desc.mipmapFilter = WGPUMipmapFilterMode_Linear;
 #else
     sampler_desc.mipmapFilter = WGPUFilterMode_Linear;
+
 #endif
     sampler_desc.addressModeU = WGPUAddressMode_Repeat;
     sampler_desc.addressModeV = WGPUAddressMode_Repeat;
@@ -848,6 +820,46 @@ bool ImGui_ImplWGPU_Init(WGPUDevice device, int num_frames_in_flight,
     fr->IndexBufferSize = 10000;
     fr->VertexBufferSize = 5000;
   }
+
+  // Upload the initial value of the uniforms
+  g_uniforms.time = 1.0f;
+  g_uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
+
+  // Matrices
+  g_uniforms.modelMatrix = mat4x4(1.0);
+  g_uniforms.viewMatrix =
+      glm::lookAt(vec3(-2.0f, -3.0f, 2.0f), vec3(0.0f), vec3(0, 0, 1));
+  g_uniforms.projectionMatrix =
+      glm::perspective(45 * PI / 180, 640.0f / 480.0f, 0.01f, 100.0f);
+
+  // Upload the initial value of the uniforms
+  g_lightingUniforms.directions = {vec4{0.5, -0.9, 0.1, 0.0},
+                                   vec4{0.2, 0.4, 0.3, 0.0}};
+  g_lightingUniforms.colors = {vec4{1.0, 0.9, 0.6, 1.0},
+                               vec4{0.6, 0.9, 1.0, 1.0}};
+  g_lightingUniforms.hardness = 16.0f;
+  g_lightingUniforms.kd = 1.0f;
+  g_lightingUniforms.ks = 0.5f;
+
+  // upload intial vertex buffer data
+  bool success = ResourceManager::loadGeometryFromObj(
+      RESOURCE_DIR "/fourareen.obj", g_vertexData);
+  if (!success) {
+    std::cerr << "Could not load geometry!" << std::endl;
+  }
+
+  // NOTE: load texture and create a bindgroup here
+  TextureView textureView = nullptr;
+  Texture texture = ResourceManager::loadTexture(
+      RESOURCE_DIR "/fourareen2K_albedo.jpg", g_wgpuDevice, &textureView);
+  if (!texture) {
+    std::cerr << "Could not load texture!" << std::endl;
+    return false;
+  }
+  auto image_bind_group = ImGui_ImplWGPU_CreateImageBindGroup(
+      g_resources.ImageBindGroupLayout, textureView);
+  g_resources.ImageBindGroups.SetVoidPtr(
+      ImHashData(&textureView, sizeof(ImTextureID)), image_bind_group);
 
   return true;
 }
