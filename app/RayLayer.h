@@ -58,6 +58,9 @@ public:
     }
 
     //
+    ResourceManager::loadTexture(RESOURCE_DIR "/fourareen2K_albedo.jpg",
+                                 Application::Get()->GetDevice(),
+                                 &m_TextureView);
   }
 
   virtual void OnUpdate(float ts) override { m_Camera.OnUpdate(ts); }
@@ -125,12 +128,10 @@ public:
                    ImVec2(0, 1), ImVec2(1, 0));
     }
 
-    TextureView textureView = nullptr;
-    ResourceManager::loadTexture(RESOURCE_DIR "/fourareen2K_albedo.jpg",
-                                 Application::Get()->GetDevice(), &textureView);
+    // TODO: load image to file
     ImGui::Begin("test GetTextureId");
-    if (textureView) {
-      ImGui::Image((ImTextureID)textureView,
+    if (m_TextureView) {
+      ImGui::Image((ImTextureID)m_TextureView,
                    {(float)m_ViewportWidth, (float)m_ViewportHeight});
     }
     ImGui::End();
@@ -159,5 +160,6 @@ private:
   Scene m_Scene;
   uint32_t m_ViewportWidth = 0, m_ViewportHeight = 0;
 
+  TextureView m_TextureView = nullptr;
   float m_LastRenderTime = 0.0F;
 };
