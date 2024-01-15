@@ -34,7 +34,6 @@
 /* #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO */
 /* #include "spdlog/spdlog.h" */
 
-#define WEBGPU_BACKEND_WGPU
 #include "glfw3webgpu.h"
 #include "webgpu.h"
 #include "webgpu.hpp"
@@ -1161,9 +1160,13 @@ void Application::initComputeBindGroup() {
   m_bindGroup = m_device.createBindGroup(bindGroupDesc);
 }
 
-void Application::terminateBindGroup() {
-  /* wgpuBindGroupRelease(m_bindGroup);  */
+#define wgpuBindGroupRelease wgpuBindGroupDrop
+static void SafeRelease(WGPUBindGroup &res) {
+  if (res)
+    wgpuBindGroupRelease(res);
+  res = nullptr;
 }
+void Application::terminateBindGroup() { SafeRelease(m_bindGroup); }
 
 void Application::initComputeBindGroupLayout() {
   // Create bind group layout
@@ -1338,6 +1341,7 @@ void Application::buildComputePipeline() {
   std::cout << "Compute group: " << m_computeBindGroup << "\n";
 }
 
+// Beautifull UI
 void Application::UI_DrawMenubar() {
   if (!m_MenubarCallback)
     return;
@@ -1536,4 +1540,5 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
 bool Application::IsMaximized() const {
   return (bool)glfwGetWindowAttrib(m_WindowHandle, GLFW_MAXIMIZED);
 }
+
 void Application::Close() { m_Running = false; }
