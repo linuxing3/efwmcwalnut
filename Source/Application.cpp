@@ -118,6 +118,19 @@ static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
 
+Application::Application(const ApplicationSpecification &specification)
+    : m_Specification(specification) {
+  s_Instance = this;
+
+  onInit();
+}
+
+Application::~Application() {
+  onFinish();
+
+  s_Instance = nullptr;
+}
+
 void Application::buildWindow() {
 
   glfwSetErrorCallback(glfw_error_callback);
@@ -691,7 +704,10 @@ void Application::onCompute() {
 }
 
 bool Application::onInit() {
+
+  m_Running = true;
   m_bufferSize = 64 * sizeof(float);
+
   buildWindow();
   buildDeviceObject();
 /* #define WEBGPU_COMPUTE */
@@ -708,6 +724,17 @@ bool Application::onInit() {
   return true;
 }
 
+void Application::onRun() {
+  while (isRunning()) {
+/* #define WEBGPU_COMPUTE */
+#ifdef WEBGPU_COMPUTE
+    onCompute();
+#else
+    onFrame();
+#endif // DEBUG
+  }
+}
+
 void Application::onFinish() {
   for (auto texture : m_textures) {
     texture.destroy();
@@ -715,12 +742,25 @@ void Application::onFinish() {
   for (auto layer : m_LayerStack) {
     layer->OnDetach();
   }
+  m_LayerStack.clear();
+
   m_depthTexture.destroy();
+
+  // Release resources
+  // NOTE(Yan): to avoid doing this manually, we shouldn't
+  //            store resources in this Application class
+  m_AppHeaderIcon.reset();
+  m_IconClose.reset();
+  m_IconMinimize.reset();
+  m_IconMaximize.reset();
+  m_IconRestore.reset();
 
   terminateBindGroup();
   terminateBuffers();
   terminateComputePipeline();
   terminateBindGroupLayout();
+
+  ImGui_ImplWGPU_Shutdown();
   glfwDestroyWindow(m_WindowHandle);
   glfwTerminate();
 }
@@ -783,7 +823,9 @@ void Application::onScroll(double xoffset, double yoffset) {
   updateViewMatrix();
 }
 
-bool Application::isRunning() { return !glfwWindowShouldClose(m_WindowHandle); }
+bool Application::isRunning() {
+  return (!glfwWindowShouldClose(m_WindowHandle) && m_Running);
+}
 
 void Application::updateViewMatrix() {
   float cx = cos(m_cameraState.angles.x);
@@ -996,32 +1038,34 @@ void Application::updateGui(RenderPassEncoder renderPass) {
 
   {
 
-    bool changed = false;
-    ImGui::Begin("Lighting");
-    changed = ImGui::ColorEdit3("Color #0",
-                                glm::value_ptr(m_lightingUniforms.colors[0])) ||
-              changed;
-    changed = ImGui::DragDirection("Direction #0",
-                                   m_lightingUniforms.directions[0]) ||
-              changed;
-    changed = ImGui::ColorEdit3("Color #1",
-                                glm::value_ptr(m_lightingUniforms.colors[1])) ||
-              changed;
-    changed = ImGui::DragDirection("Direction #1",
-                                   m_lightingUniforms.directions[1]) ||
-              changed;
-    changed = ImGui::SliderFloat("Hardness", &m_lightingUniforms.hardness,
-                                 0.01f, 128.0f) ||
-              changed;
-    changed =
-        ImGui::SliderFloat("K Diffuse", &m_lightingUniforms.kd, 0.0f, 2.0f) ||
-        changed;
-    changed =
-        ImGui::SliderFloat("K Specular", &m_lightingUniforms.ks, 0.0f, 2.0f) ||
-        changed;
-    ImGui::End();
+    // bool changed = false;
+    // ImGui::Begin("Lighting");
+    // changed = ImGui::ColorEdit3("Color #0",
+    //                             glm::value_ptr(m_lightingUniforms.colors[0]))
+    //                             ||
+    //           changed;
+    // changed = ImGui::DragDirection("Direction #0",
+    //                                m_lightingUniforms.directions[0]) ||
+    //           changed;
+    // changed = ImGui::ColorEdit3("Color #1",
+    //                             glm::value_ptr(m_lightingUniforms.colors[1]))
+    //                             ||
+    //           changed;
+    // changed = ImGui::DragDirection("Direction #1",
+    //                                m_lightingUniforms.directions[1]) ||
+    //           changed;
+    // changed = ImGui::SliderFloat("Hardness", &m_lightingUniforms.hardness,
+    //                              0.01f, 128.0f) ||
+    //           changed;
+    // changed =
+    //     ImGui::SliderFloat("K Diffuse", &m_lightingUniforms.kd, 0.0f, 2.0f)
+    //     || changed;
+    // changed =
+    //     ImGui::SliderFloat("K Specular", &m_lightingUniforms.ks, 0.0f, 2.0f)
+    //     || changed;
+    // ImGui::End();
 
-    m_lightingUniformsChanged = changed;
+    // m_lightingUniformsChanged = changed;
   }
 
   // Render
@@ -1034,10 +1078,6 @@ void Application::updateGui(RenderPassEncoder renderPass) {
     ImGui_ImplWGPU_RenderDrawData(main_draw_data, renderPass);
   /* ImGui_ImplWGPU_RenderCustomData(renderPass); */
 }
-
-// NOTE: Set Application instance as static instance, not global variable
-// here this = *Application
-Application::Application() { s_Instance = this; };
 
 // NOTE: Singleton design pattern
 // so other code can access it with static method Application::Get()
@@ -1496,29 +1536,4 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
 bool Application::IsMaximized() const {
   return (bool)glfwGetWindowAttrib(m_WindowHandle, GLFW_MAXIMIZED);
 }
-void Application::Close() {}
-
-void Application::Shutdown() {
-  for (auto &layer : m_LayerStack)
-    layer->OnDetach();
-
-  m_LayerStack.clear();
-
-  // Release resources
-  // NOTE(Yan): to avoid doing this manually, we shouldn't
-  //            store resources in this Application class
-  m_AppHeaderIcon.reset();
-  m_IconClose.reset();
-  m_IconMinimize.reset();
-  m_IconMaximize.reset();
-  m_IconRestore.reset();
-
-  // Free resources in queue
-
-  ImGui_ImplWGPU_Shutdown();
-  ImGui_ImplGlfw_Shutdown();
-  ImGui::DestroyContext();
-
-  glfwDestroyWindow(m_WindowHandle);
-  glfwTerminate();
-}
+void Application::Close() { m_Running = false; }

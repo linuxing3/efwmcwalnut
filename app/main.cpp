@@ -31,21 +31,35 @@
 #include "Renderer.h"
 
 int main(int argc, char **) {
-  auto *app = new Application();
-  app->onInit();
+
+  ApplicationSpecification spec;
+  spec.Name = "Walnut Example";
+  spec.CustomTitlebar = true;
+  auto *app = new Application(spec);
 
   // NOTE:
   std::shared_ptr<RayLayer> rayLayer = std::make_shared<RayLayer>();
   app->PushLayer(rayLayer);
-  while (app->isRunning()) {
-/* #define WEBGPU_COMPUTE */
-#ifdef WEBGPU_COMPUTE
-    app->onCompute();
-#else
-    app->onFrame();
-#endif // DEBUG
-  }
 
-  app->onFinish();
+  // Sett callbacks
+  app->SetMenubarCallback([app]() {
+    if (ImGui::BeginMenu("File")) {
+      if (ImGui::MenuItem("Exit")) {
+        app->Close();
+      }
+      ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Help")) {
+      if (ImGui::MenuItem("About")) {
+        // gameLayer->ShowAboutModal();
+      }
+      ImGui::EndMenu();
+    }
+  });
+
+  // Run app
+  app->onRun();
+
   return 0;
 }

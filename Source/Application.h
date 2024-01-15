@@ -46,9 +46,13 @@ using namespace std;
 
 class Application {
 public:
-  Application();
+  Application(const ApplicationSpecification &applicationSpecification =
+                  ApplicationSpecification());
+  ~Application();
+
   static Application *Get();
-  // A function called only once at the beginning. Returns false is init failed.
+  // A function called only once at the beginning. Returns false is init
+  // failed.
   bool onInit();
 
   void onCompute();
@@ -122,6 +126,7 @@ private:
   TextureFormat m_swapChainFormat = TextureFormat::RGBA8UnormSrgb;
   TextureFormat m_depthTextureFormat = TextureFormat::Depth32Float;
 
+  bool m_Running = false;
   // Everything that is initialized in `onInit` and needed in `onFrame`.
   Instance m_instance = nullptr;
   Surface m_surface = nullptr;
@@ -201,9 +206,6 @@ private:
     return m_AppHeaderIcon;
   }
 
-  void Close();
-  void Shutdown();
-  float GetTime();
   GLFWwindow *GetWindowHandle() const { return m_WindowHandle; }
   bool IsTitleBarHovered() const { return m_TitleBarHovered; }
 
@@ -223,8 +225,15 @@ public:
     m_EventQueue.push(func);
   }
 
+  void SetMenubarCallback(const std::function<void()> &menubarCallback) {
+    m_MenubarCallback = menubarCallback;
+  }
+
   void PushLayer(const shared_ptr<Walnut::Layer> &layer) {
     m_LayerStack.emplace_back(layer);
     layer->OnAttach();
   }
+  void onRun();
+  void Close();
+  float GetTime();
 };
