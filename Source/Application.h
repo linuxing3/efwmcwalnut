@@ -234,6 +234,6 @@ public:
     layer->OnAttach();
   }
   void onRun();
-  void Close();
+  void onClose();
   float GetTime();
 };

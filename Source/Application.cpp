@@ -81,13 +81,22 @@ static std::unordered_map<std::string, ImFont *> s_Fonts;
 
 constexpr float PI = 3.14159265358979323846f;
 
-using namespace wgpu;
-using namespace Walnut;
 using VertexAttributes = ResourceManager::VertexAttributes;
 using glm::mat4x4;
 using glm::vec2;
 using glm::vec3;
 using glm::vec4;
+
+using namespace wgpu;
+using namespace Walnut;
+namespace ImGui {
+bool DragDirection(const char *label, vec4 &direction) {
+  vec2 angles = glm::degrees(glm::polar(vec3(direction)));
+  bool changed = ImGui::DragFloat2(label, glm::value_ptr(angles));
+  direction = vec4(glm::euclidean(glm::radians(angles)), direction.w);
+  return changed;
+}
+} // namespace ImGui
 
 // GLFW callbacks
 void onWindowResize(GLFWwindow *window, int width, int height) {
@@ -112,11 +121,11 @@ void onWindowScroll(GLFWwindow *window, double xoffset, double yoffset) {
   if (pApp != nullptr)
     pApp->onScroll(xoffset, yoffset);
 }
-
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
 
+// Application
 Application::Application(const ApplicationSpecification &specification)
     : m_Specification(specification) {
   s_Instance = this;
@@ -130,6 +139,137 @@ Application::~Application() {
   s_Instance = nullptr;
 }
 
+bool Application::onInit() {
+
+  m_Running = true;
+  m_bufferSize = 64 * sizeof(float);
+
+  buildWindow();
+  buildDeviceObject();
+/* #define WEBGPU_COMPUTE */
+#ifdef WEBGPU_COMPUTE
+  initComputeBindGroupLayout();
+  initComputePipeline();
+  initComputeBuffers();
+  initComputeBindGroup();
+  /* buildComputePipeline(); */
+#else
+  buildRenderPipeline();
+  initGui();
+#endif // DEBUG
+  return true;
+}
+
+void Application::onRun() {
+  while (isRunning()) {
+/* #define WEBGPU_COMPUTE */
+#ifdef WEBGPU_COMPUTE
+    onCompute();
+#else
+    onFrame();
+#endif // DEBUG
+  }
+}
+
+void Application::onFinish() {
+  for (auto texture : m_textures) {
+    texture.destroy();
+  }
+  for (auto layer : m_LayerStack) {
+    layer->OnDetach();
+  }
+  m_LayerStack.clear();
+
+  m_depthTexture.destroy();
+
+  // Release resources
+  // NOTE(Yan): to avoid doing this manually, we shouldn't
+  //            store resources in this Application class
+  m_AppHeaderIcon.reset();
+  m_IconClose.reset();
+  m_IconMinimize.reset();
+  m_IconMaximize.reset();
+  m_IconRestore.reset();
+
+  terminateBindGroup();
+  terminateBuffers();
+  terminateComputePipeline();
+  terminateBindGroupLayout();
+
+  ImGui_ImplWGPU_Shutdown();
+  glfwDestroyWindow(m_WindowHandle);
+  glfwTerminate();
+}
+
+bool Application::IsMaximized() const {
+  return (bool)glfwGetWindowAttrib(m_WindowHandle, GLFW_MAXIMIZED);
+}
+
+void Application::onClose() { m_Running = false; }
+
+void Application::onResize() {
+  buildSwapChain();
+  buildDepthBuffer();
+
+  float ratio = m_swapChainDesc.width / (float)m_swapChainDesc.height;
+  m_uniforms.projectionMatrix =
+      glm::perspective(45 * PI / 180, ratio, 0.01f, 100.0f);
+  m_device.getQueue().writeBuffer(
+      m_uniformBuffer, offsetof(MyUniforms, projectionMatrix),
+      &m_uniforms.projectionMatrix, sizeof(MyUniforms::projectionMatrix));
+}
+
+void Application::onMouseMove(double xpos, double ypos) {
+  if (m_drag.active) {
+    vec2 currentMouse = vec2(-(float)xpos, (float)ypos);
+    vec2 delta = (currentMouse - m_drag.startMouse) * m_drag.sensitivity;
+    m_cameraState.angles = m_drag.startCameraState.angles + delta;
+    m_cameraState.angles.y =
+        glm::clamp(m_cameraState.angles.y, -PI / 2 + 1e-5f, PI / 2 - 1e-5f);
+    updateViewMatrix();
+
+    // Inertia
+    m_drag.velocity = delta - m_drag.previousDelta;
+    m_drag.previousDelta = delta;
+  }
+}
+
+void Application::onMouseButton(int button, int action, int mods) {
+  ImGuiIO &io = ImGui::GetIO();
+  (void)io;
+  if (io.WantCaptureMouse) {
+    return;
+  }
+
+  (void)mods;
+  if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    switch (action) {
+    case GLFW_PRESS:
+      m_drag.active = true;
+      double xpos, ypos;
+      glfwGetCursorPos(m_WindowHandle, &xpos, &ypos);
+      m_drag.startMouse = vec2(-(float)xpos, (float)ypos);
+      m_drag.startCameraState = m_cameraState;
+      break;
+    case GLFW_RELEASE:
+      m_drag.active = false;
+      break;
+    }
+  }
+}
+
+void Application::onScroll(double xoffset, double yoffset) {
+  (void)xoffset;
+  m_cameraState.zoom += m_drag.scrollSensitivity * (float)yoffset;
+  m_cameraState.zoom = glm::clamp(m_cameraState.zoom, -2.0f, 2.0f);
+  updateViewMatrix();
+}
+
+bool Application::isRunning() {
+  return (!glfwWindowShouldClose(m_WindowHandle) && m_Running);
+}
+
+// build everything
 void Application::buildWindow() {
 
   glfwSetErrorCallback(glfw_error_callback);
@@ -702,130 +842,6 @@ void Application::onCompute() {
   }
 }
 
-bool Application::onInit() {
-
-  m_Running = true;
-  m_bufferSize = 64 * sizeof(float);
-
-  buildWindow();
-  buildDeviceObject();
-/* #define WEBGPU_COMPUTE */
-#ifdef WEBGPU_COMPUTE
-  initComputeBindGroupLayout();
-  initComputePipeline();
-  initComputeBuffers();
-  initComputeBindGroup();
-  /* buildComputePipeline(); */
-#else
-  buildRenderPipeline();
-  initGui();
-#endif // DEBUG
-  return true;
-}
-
-void Application::onRun() {
-  while (isRunning()) {
-/* #define WEBGPU_COMPUTE */
-#ifdef WEBGPU_COMPUTE
-    onCompute();
-#else
-    onFrame();
-#endif // DEBUG
-  }
-}
-
-void Application::onFinish() {
-  for (auto texture : m_textures) {
-    texture.destroy();
-  }
-  for (auto layer : m_LayerStack) {
-    layer->OnDetach();
-  }
-  m_LayerStack.clear();
-
-  m_depthTexture.destroy();
-
-  // Release resources
-  // NOTE(Yan): to avoid doing this manually, we shouldn't
-  //            store resources in this Application class
-  m_AppHeaderIcon.reset();
-  m_IconClose.reset();
-  m_IconMinimize.reset();
-  m_IconMaximize.reset();
-  m_IconRestore.reset();
-
-  terminateBindGroup();
-  terminateBuffers();
-  terminateComputePipeline();
-  terminateBindGroupLayout();
-
-  ImGui_ImplWGPU_Shutdown();
-  glfwDestroyWindow(m_WindowHandle);
-  glfwTerminate();
-}
-
-void Application::onResize() {
-  buildSwapChain();
-  buildDepthBuffer();
-
-  float ratio = m_swapChainDesc.width / (float)m_swapChainDesc.height;
-  m_uniforms.projectionMatrix =
-      glm::perspective(45 * PI / 180, ratio, 0.01f, 100.0f);
-  m_device.getQueue().writeBuffer(
-      m_uniformBuffer, offsetof(MyUniforms, projectionMatrix),
-      &m_uniforms.projectionMatrix, sizeof(MyUniforms::projectionMatrix));
-}
-
-void Application::onMouseMove(double xpos, double ypos) {
-  if (m_drag.active) {
-    vec2 currentMouse = vec2(-(float)xpos, (float)ypos);
-    vec2 delta = (currentMouse - m_drag.startMouse) * m_drag.sensitivity;
-    m_cameraState.angles = m_drag.startCameraState.angles + delta;
-    m_cameraState.angles.y =
-        glm::clamp(m_cameraState.angles.y, -PI / 2 + 1e-5f, PI / 2 - 1e-5f);
-    updateViewMatrix();
-
-    // Inertia
-    m_drag.velocity = delta - m_drag.previousDelta;
-    m_drag.previousDelta = delta;
-  }
-}
-
-void Application::onMouseButton(int button, int action, int mods) {
-  ImGuiIO &io = ImGui::GetIO();
-  (void)io;
-  if (io.WantCaptureMouse) {
-    return;
-  }
-
-  (void)mods;
-  if (button == GLFW_MOUSE_BUTTON_LEFT) {
-    switch (action) {
-    case GLFW_PRESS:
-      m_drag.active = true;
-      double xpos, ypos;
-      glfwGetCursorPos(m_WindowHandle, &xpos, &ypos);
-      m_drag.startMouse = vec2(-(float)xpos, (float)ypos);
-      m_drag.startCameraState = m_cameraState;
-      break;
-    case GLFW_RELEASE:
-      m_drag.active = false;
-      break;
-    }
-  }
-}
-
-void Application::onScroll(double xoffset, double yoffset) {
-  (void)xoffset;
-  m_cameraState.zoom += m_drag.scrollSensitivity * (float)yoffset;
-  m_cameraState.zoom = glm::clamp(m_cameraState.zoom, -2.0f, 2.0f);
-  updateViewMatrix();
-}
-
-bool Application::isRunning() {
-  return (!glfwWindowShouldClose(m_WindowHandle) && m_Running);
-}
-
 void Application::updateViewMatrix() {
   float cx = cos(m_cameraState.angles.x);
   float sx = sin(m_cameraState.angles.x);
@@ -953,15 +969,6 @@ void Application::initGui() {
   // Setup Platform/Renderer backends
   ImGui_ImplWGPU_Init(m_device, 3, m_swapChainFormat, m_depthTextureFormat);
 }
-
-namespace ImGui {
-bool DragDirection(const char *label, vec4 &direction) {
-  vec2 angles = glm::degrees(glm::polar(vec3(direction)));
-  bool changed = ImGui::DragFloat2(label, glm::value_ptr(angles));
-  direction = vec4(glm::euclidean(glm::radians(angles)), direction.w);
-  return changed;
-}
-} // namespace ImGui
 
 void Application::updateGui(RenderPassEncoder renderPass) {
   // Start the Dear ImGui frame
@@ -1523,7 +1530,7 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
     const int iconWidth = m_IconClose->GetWidth();
     const int iconHeight = m_IconClose->GetHeight();
     if (ImGui::InvisibleButton("Close", ImVec2(buttonWidth, buttonHeight)))
-      Application::Get()->Close();
+      Application::Get()->onClose();
 
     UI::DrawButtonImage(
         m_IconClose, UI::Colors::Theme::text,
@@ -1536,9 +1543,3 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
 
   outTitlebarHeight = titlebarHeight;
 }
-
-bool Application::IsMaximized() const {
-  return (bool)glfwGetWindowAttrib(m_WindowHandle, GLFW_MAXIMIZED);
-}
-
-void Application::Close() { m_Running = false; }

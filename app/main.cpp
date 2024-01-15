@@ -45,7 +45,7 @@ int main(int argc, char **) {
   app->SetMenubarCallback([app]() {
     if (ImGui::BeginMenu("File")) {
       if (ImGui::MenuItem("Exit")) {
-        app->Close();
+        app->onClose();
       }
       ImGui::EndMenu();
     }
