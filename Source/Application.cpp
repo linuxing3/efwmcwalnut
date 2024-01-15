@@ -185,11 +185,11 @@ void Application::onFinish() {
   // Release resources
   // NOTE(Yan): to avoid doing this manually, we shouldn't
   //            store resources in this Application class
-  m_AppHeaderIcon.reset();
-  m_IconClose.reset();
-  m_IconMinimize.reset();
-  m_IconMaximize.reset();
-  m_IconRestore.reset();
+  g_AppHeaderIcon.reset();
+  g_IconClose.reset();
+  g_IconMinimize.reset();
+  g_IconMaximize.reset();
+  g_IconRestore.reset();
 
   terminateBindGroup();
   terminateBuffers();
@@ -929,7 +929,7 @@ void Application::initGui() {
   {
     uint32_t w, h;
     void *data = Image::Decode(g_WalnutIcon, sizeof(g_WalnutIcon), w, h);
-    m_AppHeaderIcon =
+    g_AppHeaderIcon =
         std::make_shared<Walnut::Image>(w, h, ImageFormat::RGBA, data);
     free(data);
   }
@@ -937,7 +937,7 @@ void Application::initGui() {
     uint32_t w, h;
     void *data =
         Image::Decode(g_WindowMinimizeIcon, sizeof(g_WindowMinimizeIcon), w, h);
-    m_IconMinimize =
+    g_IconMinimize =
         std::make_shared<Walnut::Image>(w, h, ImageFormat::RGBA, data);
     free(data);
   }
@@ -945,7 +945,7 @@ void Application::initGui() {
     uint32_t w, h;
     void *data =
         Image::Decode(g_WindowMaximizeIcon, sizeof(g_WindowMaximizeIcon), w, h);
-    m_IconMaximize =
+    g_IconMaximize =
         std::make_shared<Walnut::Image>(w, h, ImageFormat::RGBA, data);
     free(data);
   }
@@ -953,7 +953,7 @@ void Application::initGui() {
     uint32_t w, h;
     void *data =
         Image::Decode(g_WindowRestoreIcon, sizeof(g_WindowRestoreIcon), w, h);
-    m_IconRestore =
+    g_IconRestore =
         std::make_shared<Walnut::Image>(w, h, ImageFormat::RGBA, data);
     free(data);
   }
@@ -961,7 +961,7 @@ void Application::initGui() {
     uint32_t w, h;
     void *data =
         Image::Decode(g_WindowCloseIcon, sizeof(g_WindowCloseIcon), w, h);
-    m_IconClose =
+    g_IconClose =
         std::make_shared<Walnut::Image>(w, h, ImageFormat::RGBA, data);
     free(data);
   }
@@ -1392,10 +1392,10 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
   auto *fgDrawList = ImGui::GetForegroundDrawList();
   bgDrawList->AddRectFilled(titlebarMin, titlebarMax,
                             UI::Colors::Theme::titlebar);
-  // DEBUG TITLEBAR BOUNDS
-  // fgDrawList->AddRect(titlebarMin, titlebarMax,
-  // UI::Colors::Theme::invalidPrefab);
-
+#ifdef DEBUG_TITLEBAR_BOUNDS
+  fgDrawList->AddRect(titlebarMin, titlebarMax,
+                      UI::Colors::Theme::invalidPrefab);
+#endif
   // Logo
   {
     const int logoWidth = 48;  // m_LogoTex->GetWidth();
@@ -1406,7 +1406,7 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
                                   ImGui::GetItemRectMin().y + logoOffset.y};
     const ImVec2 logoRectMax = {logoRectStart.x + logoWidth,
                                 logoRectStart.y + logoHeight};
-    fgDrawList->AddImage(m_AppHeaderIcon->GetDescriptorSet(), logoRectStart,
+    fgDrawList->AddImage(g_AppHeaderIcon->GetDescriptorSet(), logoRectStart,
                          logoRectMax);
   }
 
@@ -1484,8 +1484,8 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
   ImGui::Spring();
   UI::ShiftCursorY(8.0f);
   {
-    const int iconWidth = m_IconMinimize->GetWidth();
-    const int iconHeight = m_IconMinimize->GetHeight();
+    const int iconWidth = g_IconMinimize->GetWidth();
+    const int iconHeight = g_IconMinimize->GetHeight();
     const float padY = (buttonHeight - (float)iconHeight) / 2.0f;
     if (ImGui::InvisibleButton("Minimize", ImVec2(buttonWidth, buttonHeight))) {
       // TODO: move this stuff to a better place, like Window class
@@ -1496,7 +1496,7 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
       }
     }
 
-    UI::DrawButtonImage(m_IconMinimize, buttonColN, buttonColH, buttonColP,
+    UI::DrawButtonImage(g_IconMinimize, buttonColN, buttonColH, buttonColP,
                         UI::RectExpanded(UI::GetItemRect(), 0.0f, -padY));
   }
 
@@ -1504,8 +1504,8 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
   ImGui::Spring(-1.0f, 17.0f);
   UI::ShiftCursorY(8.0f);
   {
-    const int iconWidth = m_IconMaximize->GetWidth();
-    const int iconHeight = m_IconMaximize->GetHeight();
+    const int iconWidth = g_IconMaximize->GetWidth();
+    const int iconHeight = g_IconMaximize->GetHeight();
 
     const bool isMaximized = IsMaximized();
 
@@ -1519,7 +1519,7 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
           });
     }
 
-    UI::DrawButtonImage(isMaximized ? m_IconRestore : m_IconMaximize,
+    UI::DrawButtonImage(isMaximized ? g_IconRestore : g_IconMaximize,
                         buttonColN, buttonColH, buttonColP);
   }
 
@@ -1527,13 +1527,13 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
   ImGui::Spring(-1.0f, 15.0f);
   UI::ShiftCursorY(8.0f);
   {
-    const int iconWidth = m_IconClose->GetWidth();
-    const int iconHeight = m_IconClose->GetHeight();
+    const int iconWidth = g_IconClose->GetWidth();
+    const int iconHeight = g_IconClose->GetHeight();
     if (ImGui::InvisibleButton("Close", ImVec2(buttonWidth, buttonHeight)))
       Application::Get()->onClose();
 
     UI::DrawButtonImage(
-        m_IconClose, UI::Colors::Theme::text,
+        g_IconClose, UI::Colors::Theme::text,
         UI::Colors::ColorWithMultipliedValue(UI::Colors::Theme::text, 1.4f),
         buttonColP);
   }

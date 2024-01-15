@@ -24,11 +24,9 @@
  * SOFTWARE.
  */
 
+#pragma once
 #include "Application.h"
-/* #include "EntryPoint.h" */
-#include "Camera.h"
 #include "RayLayer.h"
-#include "Renderer.h"
 
 int main(int argc, char **) {
 

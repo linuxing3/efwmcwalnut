@@ -29,6 +29,7 @@
 #include "Common.h"
 #include "Layer.h"
 #include "ResourceManager.h"
+#include "SharedData.h"
 #include "Walnut/Image.h"
 
 #include <GLFW/glfw3.h>
@@ -193,17 +194,8 @@ private:
   std::mutex m_EventQueueMutex;
   std::queue<std::function<void()>> m_EventQueue;
 
-  // Resources
-  // TODO(Yan): move out of application class since this can't be tied
-  //            to application lifetime
-  std::shared_ptr<Walnut::Image> m_AppHeaderIcon;
-  std::shared_ptr<Walnut::Image> m_IconClose;
-  std::shared_ptr<Walnut::Image> m_IconMinimize;
-  std::shared_ptr<Walnut::Image> m_IconMaximize;
-  std::shared_ptr<Walnut::Image> m_IconRestore;
-
   std::shared_ptr<Walnut::Image> GetApplicationIcon() const {
-    return m_AppHeaderIcon;
+    return g_AppHeaderIcon;
   }
 
   GLFWwindow *GetWindowHandle() const { return m_WindowHandle; }
