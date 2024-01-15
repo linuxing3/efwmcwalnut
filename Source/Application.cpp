@@ -29,6 +29,7 @@
 #include "ImGui/ImGuiTheme.h"
 #include "ResourceManager.h"
 #include "Walnut/UI.h"
+#include <thread>
 
 /* #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO */
 /* #include "spdlog/spdlog.h" */
@@ -599,10 +600,25 @@ void Application::onFrame() {
       renderPass.end();
     });
 
-    // submit and present
+    // submit
     wgpuTextureViewDrop(nextTexture);
     queue.submit(command);
-    m_swapChain.present();
+
+    // present
+    // Update and Render additional Platform Windows
+    ImGuiIO &io = ImGui::GetIO();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+      ImGui::UpdatePlatformWindows();
+      ImGui::RenderPlatformWindowsDefault();
+    }
+
+    ImDrawData *main_draw_data = ImGui::GetDrawData();
+    const bool main_is_minimized = (main_draw_data->DisplaySize.x <= 0.0f ||
+                                    main_draw_data->DisplaySize.y <= 0.0f);
+    if (!main_is_minimized)
+      m_swapChain.present();
+    else
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
 }
 
@@ -808,6 +824,38 @@ void Application::initGui() {
   ImGuiIO &io = ImGui::GetIO();
   (void)io;
 
+  io.ConfigFlags |=
+      ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+  // io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad
+  // Controls
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;   // Enable Docking
+  io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport
+                                                      // / Platform Windows
+  // io.ConfigViewportsNoAutoMerge = true;
+  // io.ConfigViewportsNoTaskBarIcon = true;
+
+  // Theme colors
+  UI::SetHazelTheme();
+
+  // Style
+  ImGuiStyle &style = ImGui::GetStyle();
+  style.WindowPadding = ImVec2(10.0f, 10.0f);
+  style.FramePadding = ImVec2(8.0f, 6.0f);
+  style.ItemSpacing = ImVec2(6.0f, 6.0f);
+  style.ChildRounding = 6.0f;
+  style.PopupRounding = 6.0f;
+  style.FrameRounding = 6.0f;
+  style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
+
+  // When viewports are enabled we tweak WindowRounding/WindowBg so platform
+  // windows can look identical to regular ones.
+  if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+    style.WindowRounding = 0.0f;
+    style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+  }
+
+  ImGui_ImplGlfw_InitForOther(m_WindowHandle, true);
+
   // Load default font
   ImFontConfig fontConfig;
   fontConfig.FontDataOwnedByAtlas = false;
@@ -862,7 +910,6 @@ void Application::initGui() {
   }
 
   // Setup Platform/Renderer backends
-  ImGui_ImplGlfw_InitForOther(m_WindowHandle, true);
   ImGui_ImplWGPU_Init(m_device, 3, m_swapChainFormat, m_depthTextureFormat);
 }
 
@@ -947,38 +994,44 @@ void Application::updateGui(RenderPassEncoder renderPass) {
     ImGui::End();
   }
 
-  bool changed = false;
-  ImGui::Begin("Lighting");
-  changed = ImGui::ColorEdit3("Color #0",
-                              glm::value_ptr(m_lightingUniforms.colors[0])) ||
-            changed;
-  changed =
-      ImGui::DragDirection("Direction #0", m_lightingUniforms.directions[0]) ||
-      changed;
-  changed = ImGui::ColorEdit3("Color #1",
-                              glm::value_ptr(m_lightingUniforms.colors[1])) ||
-            changed;
-  changed =
-      ImGui::DragDirection("Direction #1", m_lightingUniforms.directions[1]) ||
-      changed;
-  changed = ImGui::SliderFloat("Hardness", &m_lightingUniforms.hardness, 0.01f,
-                               128.0f) ||
-            changed;
-  changed =
-      ImGui::SliderFloat("K Diffuse", &m_lightingUniforms.kd, 0.0f, 2.0f) ||
-      changed;
-  changed =
-      ImGui::SliderFloat("K Specular", &m_lightingUniforms.ks, 0.0f, 2.0f) ||
-      changed;
-  ImGui::End();
+  {
 
-  m_lightingUniformsChanged = changed;
+    bool changed = false;
+    ImGui::Begin("Lighting");
+    changed = ImGui::ColorEdit3("Color #0",
+                                glm::value_ptr(m_lightingUniforms.colors[0])) ||
+              changed;
+    changed = ImGui::DragDirection("Direction #0",
+                                   m_lightingUniforms.directions[0]) ||
+              changed;
+    changed = ImGui::ColorEdit3("Color #1",
+                                glm::value_ptr(m_lightingUniforms.colors[1])) ||
+              changed;
+    changed = ImGui::DragDirection("Direction #1",
+                                   m_lightingUniforms.directions[1]) ||
+              changed;
+    changed = ImGui::SliderFloat("Hardness", &m_lightingUniforms.hardness,
+                                 0.01f, 128.0f) ||
+              changed;
+    changed =
+        ImGui::SliderFloat("K Diffuse", &m_lightingUniforms.kd, 0.0f, 2.0f) ||
+        changed;
+    changed =
+        ImGui::SliderFloat("K Specular", &m_lightingUniforms.ks, 0.0f, 2.0f) ||
+        changed;
+    ImGui::End();
 
-  for (auto layer : m_LayerStack) {
-    layer->OnUIRender();
+    m_lightingUniformsChanged = changed;
   }
+
+  // Render
   ImGui::Render();
-  ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), renderPass);
+  ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+  ImDrawData *main_draw_data = ImGui::GetDrawData();
+  const bool main_is_minimized = (main_draw_data->DisplaySize.x <= 0.0f ||
+                                  main_draw_data->DisplaySize.y <= 0.0f);
+  if (!main_is_minimized)
+    ImGui_ImplWGPU_RenderDrawData(main_draw_data, renderPass);
   /* ImGui_ImplWGPU_RenderCustomData(renderPass); */
 }
 
