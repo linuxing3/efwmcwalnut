@@ -39,6 +39,7 @@
 #include "webgpu.hpp"
 #include "wgpu.h" // wgpuTextureViewDrop
 #include <GLFW/glfw3.h>
+#include <stb_image.h>
 
 #include <cstdint>
 #include <sys/types.h>
@@ -66,6 +67,8 @@ using namespace efwmc;
 #include "ImGui/Roboto-Bold.embed"
 #include "ImGui/Roboto-Italic.embed"
 #include "ImGui/Roboto-Regular.embed"
+
+// Emedded images
 #include "Walnut/Walnut-Icon.embed"
 #include "Walnut/WindowImages.embed"
 
@@ -73,6 +76,8 @@ using namespace efwmc;
 
 // NOTE: Singleton design pattern
 static Application *s_Instance;
+
+static std::unordered_map<std::string, ImFont *> s_Fonts;
 
 constexpr float PI = 3.14159265358979323846f;
 
@@ -108,8 +113,13 @@ void onWindowScroll(GLFWwindow *window, double xoffset, double yoffset) {
     pApp->onScroll(xoffset, yoffset);
 }
 
+static void glfw_error_callback(int error, const char *description) {
+  fprintf(stderr, "Glfw Error %d: %s\n", error, description);
+}
+
 void Application::buildWindow() {
 
+  glfwSetErrorCallback(glfw_error_callback);
   if (!glfwInit()) {
     std::cerr << "Could not initialize GLFW!" << std::endl;
   }
@@ -133,7 +143,7 @@ void Application::buildWindow() {
 
   m_WindowHandle =
       glfwCreateWindow(m_Specification.Width, m_Specification.Height,
-                       m_Specification.Name.c_str(), NULL, NULL);
+                       m_Specification.Name.c_str(), nullptr, nullptr);
 
   if (m_Specification.CenterWindow) {
     glfwSetWindowPos(m_WindowHandle,
@@ -146,8 +156,27 @@ void Application::buildWindow() {
                                                          : GLFW_FALSE);
   }
 
+  glfwShowWindow(m_WindowHandle);
+
+  // Set icon
+  GLFWimage icon;
+  int channels;
+  if (!m_Specification.IconPath.empty()) {
+    std::string iconPathStr = m_Specification.IconPath.string();
+    icon.pixels =
+        stbi_load(iconPathStr.c_str(), &icon.width, &icon.height, &channels, 4);
+    glfwSetWindowIcon(m_WindowHandle, 1, &icon);
+    stbi_image_free(icon.pixels);
+  }
+
   // Add window callbacks
   glfwSetWindowUserPointer(m_WindowHandle, this);
+  glfwSetTitlebarHitTestCallback(
+      m_WindowHandle, [](GLFWwindow *window, int x, int y, int *hit) {
+        Application *app = (Application *)glfwGetWindowUserPointer(window);
+        *hit = app->IsTitleBarHovered();
+      });
+
   glfwSetFramebufferSizeCallback(m_WindowHandle, onWindowResize);
   glfwSetCursorPosCallback(m_WindowHandle, onWindowMouseMove);
   glfwSetMouseButtonCallback(m_WindowHandle, onWindowMouseButton);
@@ -784,7 +813,54 @@ void Application::initGui() {
   fontConfig.FontDataOwnedByAtlas = false;
   ImFont *robotoFont = io.Fonts->AddFontFromMemoryTTF(
       (void *)g_RobotoRegular, sizeof(g_RobotoRegular), 20.0f, &fontConfig);
+  s_Fonts["Default"] = robotoFont;
+  s_Fonts["Bold"] = io.Fonts->AddFontFromMemoryTTF(
+      (void *)g_RobotoBold, sizeof(g_RobotoBold), 20.0f, &fontConfig);
+  s_Fonts["Italic"] = io.Fonts->AddFontFromMemoryTTF(
+      (void *)g_RobotoItalic, sizeof(g_RobotoItalic), 20.0f, &fontConfig);
   io.FontDefault = robotoFont;
+
+  // Load images
+  {
+    uint32_t w, h;
+    void *data = Image::Decode(g_WalnutIcon, sizeof(g_WalnutIcon), w, h);
+    m_AppHeaderIcon =
+        std::make_shared<Walnut::Image>(w, h, ImageFormat::RGBA, data);
+    free(data);
+  }
+  {
+    uint32_t w, h;
+    void *data =
+        Image::Decode(g_WindowMinimizeIcon, sizeof(g_WindowMinimizeIcon), w, h);
+    m_IconMinimize =
+        std::make_shared<Walnut::Image>(w, h, ImageFormat::RGBA, data);
+    free(data);
+  }
+  {
+    uint32_t w, h;
+    void *data =
+        Image::Decode(g_WindowMaximizeIcon, sizeof(g_WindowMaximizeIcon), w, h);
+    m_IconMaximize =
+        std::make_shared<Walnut::Image>(w, h, ImageFormat::RGBA, data);
+    free(data);
+  }
+  {
+    uint32_t w, h;
+    void *data =
+        Image::Decode(g_WindowRestoreIcon, sizeof(g_WindowRestoreIcon), w, h);
+    m_IconRestore =
+        std::make_shared<Walnut::Image>(w, h, ImageFormat::RGBA, data);
+    free(data);
+  }
+  {
+    uint32_t w, h;
+    void *data =
+        Image::Decode(g_WindowCloseIcon, sizeof(g_WindowCloseIcon), w, h);
+    m_IconClose =
+        std::make_shared<Walnut::Image>(w, h, ImageFormat::RGBA, data);
+    free(data);
+  }
+
   // Setup Platform/Renderer backends
   ImGui_ImplGlfw_InitForOther(m_WindowHandle, true);
   ImGui_ImplWGPU_Init(m_device, 3, m_swapChainFormat, m_depthTextureFormat);
@@ -1368,3 +1444,28 @@ bool Application::IsMaximized() const {
   return (bool)glfwGetWindowAttrib(m_WindowHandle, GLFW_MAXIMIZED);
 }
 void Application::Close() {}
+
+void Application::Shutdown() {
+  for (auto &layer : m_LayerStack)
+    layer->OnDetach();
+
+  m_LayerStack.clear();
+
+  // Release resources
+  // NOTE(Yan): to avoid doing this manually, we shouldn't
+  //            store resources in this Application class
+  m_AppHeaderIcon.reset();
+  m_IconClose.reset();
+  m_IconMinimize.reset();
+  m_IconMaximize.reset();
+  m_IconRestore.reset();
+
+  // Free resources in queue
+
+  ImGui_ImplWGPU_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+  ImGui::DestroyContext();
+
+  glfwDestroyWindow(m_WindowHandle);
+  glfwTerminate();
+}

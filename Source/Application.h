@@ -161,7 +161,6 @@ private:
   // --------------------------------------------------------
   // Fragement part
   // --------------------------------------------------------
-  // @group(0) @binding(1) var textureSampler : sampler;
 
   // @group(0) @binding(2) var baseColorTexture : texture_2d<f32>;
   vector<Texture> m_textures;
@@ -169,6 +168,7 @@ private:
   Texture m_depthTexture = nullptr;
   TextureView m_depthTextureView = nullptr;
 
+  // @group(0) @binding(3) var LightingUniforms
   LightingUniforms m_lightingUniforms;
   Buffer m_lightingUniformBuffer = nullptr;
   bool m_lightingUniformsChanged = false;
@@ -179,12 +179,11 @@ private:
   // --------------------------------------------------------
 
   unique_ptr<ErrorCallback> m_uncapturedErrorCallback;
+  std::function<void()> m_MenubarCallback;
 
   GLFWwindow *m_WindowHandle = nullptr;
   bool m_TitleBarHovered = false;
   void UI_DrawTitlebar(float &outTitlebarHeight);
-
-  std::function<void()> m_MenubarCallback;
 
   std::mutex m_EventQueueMutex;
   std::queue<std::function<void()>> m_EventQueue;
@@ -203,15 +202,12 @@ private:
   }
 
   void Close();
+  void Shutdown();
   float GetTime();
   GLFWwindow *GetWindowHandle() const { return m_WindowHandle; }
   bool IsTitleBarHovered() const { return m_TitleBarHovered; }
 
   static ImFont *GetFont(const std::string &name);
-
-  template <typename Func> void QueueEvent(Func &&func) {
-    m_EventQueue.push(func);
-  }
 
 public:
   ApplicationSpecification m_Specification;
@@ -221,6 +217,10 @@ public:
     static_assert(is_base_of<Walnut::Layer, T>::value,
                   "Pushed type is not subclass of Layer!");
     m_LayerStack.emplace_back(make_shared<T>())->OnAttach();
+  }
+
+  template <typename Func> void QueueEvent(Func &&func) {
+    m_EventQueue.push(func);
   }
 
   void PushLayer(const shared_ptr<Walnut::Layer> &layer) {
