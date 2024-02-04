@@ -103,8 +103,8 @@ struct FrameResources {
 
 struct ApplicationSpecification {
   std::string Name = "Walnut App";
-  uint32_t Width = 1600;
-  uint32_t Height = 900;
+  uint32_t Width = 945;
+  uint32_t Height = 1028;
 
   std::filesystem::path IconPath;
 

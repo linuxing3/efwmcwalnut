@@ -1,4 +1,4 @@
--- add_requires('glfw-walnut walnut', { configs = { glfw_include = 'vulkan' } })
+add_requires('glfw-walnut walnut', { configs = { glfw_include = 'vulkan' } })
 
 target('glfw3webgpu')
 set_kind('static')

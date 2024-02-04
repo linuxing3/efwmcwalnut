@@ -12,6 +12,7 @@ set_languages('c++20')
 set_allowedplats('windows', 'linux', 'macosx')
 
 includes('xmake')
+includes('vendor')
 includes('Source')
 
 if has_config('example') then

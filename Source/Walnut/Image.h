@@ -40,7 +40,7 @@ private:
   void Release();
 
 private:
-  uint32_t m_Width = 0, m_Height = 0;
+  uint32_t m_Width = 640, m_Height = 480;
 
   wgpu::TextureFormat m_Format = wgpu::TextureFormat::RGBA8Unorm;
   wgpu::TextureView m_ImageView = nullptr;
