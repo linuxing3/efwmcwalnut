@@ -22,6 +22,7 @@ add_packages('glfw-walnut', 'imgui-walnut')
 add_packages('vulkan-headers', 'stb', 'tinyobjloader')
 -- local packges with include and link need
 add_includedirs('$(projectdir)/vendor/glfw3webgpu')
+add_links('glfw3webgpu')
 add_includedirs('$(projectdir)/vendor/webgpu/include')
 add_includedirs('$(projectdir)/vendor/webgpu/include/webgpu')
 add_linkdirs('$(projectdir)/vendor/webgpu/bin/linux-x86_64')
