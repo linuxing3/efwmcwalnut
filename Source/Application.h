@@ -214,7 +214,7 @@ public:
   }
 
   template <typename Func> void QueueEvent(Func &&func) {
-    m_EventQueue.push(func);
+    m_EventQueue.emplace(func);
   }
 
   void SetMenubarCallback(const std::function<void()> &menubarCallback) {

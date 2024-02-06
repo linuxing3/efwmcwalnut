@@ -29,6 +29,7 @@
 #include "ImGui/ImGuiTheme.h"
 #include "ResourceManager.h"
 #include "Walnut/UI.h"
+#include <mutex>
 #include <thread>
 
 /* #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO */
@@ -148,15 +149,17 @@ bool Application::onInit() {
   buildDeviceObject();
 /* #define WEBGPU_COMPUTE */
 #ifdef WEBGPU_COMPUTE
-  initComputeBindGroupLayout();
-  initComputePipeline();
-  initComputeBuffers();
-  initComputeBindGroup();
-  /* buildComputePipeline(); */
-#else
-  buildRenderPipeline();
+  QueueEvent([this] {
+    initComputeBindGroupLayout();
+    initComputePipeline();
+    initComputeBuffers();
+    initComputeBindGroup();
+    buildComputePipeline();
+  });
+#endif // WEBGPU_COMPUTE
+  // FIXME: make pipeline optional
+  QueueEvent([this] { buildRenderPipeline(); });
   initGui();
-#endif // DEBUG
   return true;
 }
 
@@ -720,42 +723,55 @@ void Application::updateLighting() {
 
 void Application::onFrame() {
   glfwPollEvents();
-  Queue queue = m_device.getQueue();
+
+  // custom events
+  {
+    std::scoped_lock<std::mutex> lock(m_EventQueueMutex);
+
+    // Process custom event queue
+    while (m_EventQueue.size() > 0) {
+      auto &func = m_EventQueue.front();
+      func();
+      m_EventQueue.pop();
+    }
+  }
 
   // Update Lighting, drag, uniform buffer
   updateLighting();
   updateDragInertia();
   m_uniforms.time = static_cast<float>(glfwGetTime());
-  queue.writeBuffer(m_uniformBuffer, offsetof(MyUniforms, time),
-                    &m_uniforms.time, sizeof(MyUniforms::time));
+  m_device.getQueue().writeBuffer(m_uniformBuffer, offsetof(MyUniforms, time),
+                                  &m_uniforms.time, sizeof(MyUniforms::time));
+
+  TextureView nextTexture = s_Instance->m_swapChain.getCurrentTextureView();
+  if (!nextTexture) {
+    std::cerr << "Cannot acquire next swap chain texture" << std::endl;
+  }
+  s_Instance->Get()->m_currentTextureView = nextTexture;
 
   {
-    TextureView nextTexture = s_Instance->m_swapChain.getCurrentTextureView();
-    if (!nextTexture) {
-      std::cerr << "Cannot acquire next swap chain texture" << std::endl;
-    }
-    s_Instance->Get()->m_currentTextureView = nextTexture;
-
     auto command = RunSingleCommand([&](RenderPassEncoder renderPass) {
-      // renderPass.setPipeline(m_pipeline);
-      // renderPass.setVertexBuffer(
-      //     0, m_vertexBuffer, 0, m_vertexData.size() *
-      //     sizeof(VertexAttributes));
-      // renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
-      // renderPass.draw(m_indexCount, 1, 0, 0);
-
+      // draw ImGui
       for (auto layer : m_LayerStack) {
         layer->OnUpdate(m_uniforms.time);
       }
-
       updateGui(renderPass);
+
+      // draw mesh
+      renderPass.setPipeline(m_pipeline);
+      renderPass.setVertexBuffer(
+          0, m_vertexBuffer, 0, m_vertexData.size() * sizeof(VertexAttributes));
+      renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
+      renderPass.draw(m_indexCount, 1, 0, 0);
+
       renderPass.end();
     });
-
     // submit
     wgpuTextureViewDrop(nextTexture);
-    queue.submit(command);
+    m_device.getQueue().submit(command);
+  }
 
+  {
     // present
     // Update and Render additional Platform Windows
     ImGuiIO &io = ImGui::GetIO();
