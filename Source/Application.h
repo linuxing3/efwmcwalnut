@@ -37,7 +37,6 @@
 #include <memory>
 #include <queue>
 #include <set>
-#include <unordered_map>
 #include <vector>
 #include <webgpu.hpp>
 
@@ -47,10 +46,6 @@
 
 using namespace wgpu;
 using namespace std;
-
-// Dear ImGui prototypes from imgui_internal.h
-// extern ImGuiID ImHashData(const void *data_p, size_t data_size, ImU32 seed =
-// 0);
 
 class Application {
 public:
@@ -91,6 +86,9 @@ public:
 
   bool IsMaximized() const;
   GLFWwindow *GetWindowHandle() { return m_WindowHandle; };
+
+  TextureFormat GetSwapChainFormat() { return m_swapChainFormat; };
+  TextureFormat GetDepthTextureFormat() { return m_depthTextureFormat; };
 
   TextureView GetCurrentDepthView() { return m_depthTextureView; }
   vector<BindGroupEntry> GetBindings() { return m_bindingEntries; };
@@ -138,7 +136,7 @@ private:
   using vec3 = glm::vec3;
   using vec4 = glm::vec4;
   using mat4x4 = glm::mat4x4;
-  TextureFormat m_swapChainFormat = TextureFormat::RGBA8UnormSrgb;
+  TextureFormat m_swapChainFormat = TextureFormat::BGRA8UnormSrgb;
   TextureFormat m_depthTextureFormat = TextureFormat::Depth32Float;
 
   bool m_Running = false;

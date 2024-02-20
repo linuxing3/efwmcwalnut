@@ -3,6 +3,7 @@
 
 #include "Application.h"
 
+#include "imgui_internal.h"
 #include "vulkan/vulkan_core.h"
 #include <cstdint>
 
@@ -50,12 +51,13 @@ static VkFormat WalnutFormatToVulkan(Walnut::ImageFormat format) {
     return VK_FORMAT_R32G32B32A32_SFLOAT;
   return (VkFormat)0;
 }
-static VkFormat WPUImageFormatToVulkan(TextureFormat format) {
-  if (format == TextureFormat::RGBA8Unorm)
-    return VK_FORMAT_R8G8B8A8_UNORM;
-  if (format == TextureFormat::RGBA32Float)
-    return VK_FORMAT_R32G32B32A32_SFLOAT;
-  return (VkFormat)0;
+
+static TextureFormat WalnutFormatToWGPU(Walnut::ImageFormat format) {
+  if (format == Walnut::ImageFormat::RGBA)
+    return TextureFormat::RGBA8Unorm;
+  if (format == Walnut::ImageFormat::RGBA32F)
+    return TextureFormat::RGBA32Float;
+  return TextureFormat::BGRA8Unorm;
 }
 
 } // namespace Utils
@@ -100,7 +102,10 @@ void Image::SetImageViewId(WGPUTextureView *textView) {
 }
 
 void Image::AllocateMemory() {
-  wgpu::Device device = Application::Get()->GetDevice();
+  auto app = Application::Get();
+  wgpu::Device device = app->GetDevice();
+  TextureFormat swapChainFormat = app->GetSwapChainFormat();
+  m_Format = TextureFormat::RGBA8Unorm;
 
 #define IMGUI_WGPU
 #ifdef IMGUI_WGPU
@@ -117,14 +122,15 @@ void Image::AllocateMemory() {
     tex_desc.size.height = m_Height; // height here
     tex_desc.size.depthOrArrayLayers = 1;
     tex_desc.sampleCount = 1;
-    tex_desc.format = WGPUTextureFormat_RGBA8Unorm;
+    tex_desc.format = m_Format;
     tex_desc.mipLevelCount = 1;
-    tex_desc.usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
+    tex_desc.usage = WGPUTextureUsage_RenderAttachment |
+                     WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
     m_Image = wgpuDeviceCreateTexture(device, &tex_desc);
 
     // Create ImageView <-- DescriptorSet
     WGPUTextureViewDescriptor tex_view_desc = {};
-    tex_view_desc.format = WGPUTextureFormat_RGBA8Unorm;
+    tex_view_desc.format = m_Format;
     tex_view_desc.dimension = WGPUTextureViewDimension_2D;
     tex_view_desc.baseMipLevel = 0;
     tex_view_desc.mipLevelCount = 1;
@@ -225,6 +231,44 @@ void *Image::Decode(const void *buffer, uint64_t length, uint32_t &outWidth,
   outHeight = height;
 
   return data;
+}
+
+void Image::InitModel(uint32_t width, uint32_t height) {
+  auto app = Application::Get();
+  wgpu::Device device = app->GetDevice();
+  TextureFormat swapChainFormat = app->GetSwapChainFormat();
+  // Create Texture/Image
+  WGPUTextureDescriptor tex_desc = {};
+  tex_desc.label = "Dear ImGui target Texture";
+  tex_desc.dimension = WGPUTextureDimension_2D;
+  tex_desc.size.width = width;   // width here
+  tex_desc.size.height = height; // height here
+  tex_desc.size.depthOrArrayLayers = 1;
+  tex_desc.sampleCount = 1;
+  tex_desc.format = swapChainFormat;
+  tex_desc.mipLevelCount = 1;
+  tex_desc.usage = WGPUTextureUsage_RenderAttachment |
+                   WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
+  auto targetImage = wgpuDeviceCreateTexture(device, &tex_desc);
+
+  // Create ImageView <-- DescriptorSet
+  WGPUTextureViewDescriptor tex_view_desc = {};
+  tex_view_desc.format = swapChainFormat;
+  tex_view_desc.dimension = WGPUTextureViewDimension_2D;
+  tex_view_desc.baseMipLevel = 0;
+  tex_view_desc.mipLevelCount = 1;
+  tex_view_desc.baseArrayLayer = 0;
+  tex_view_desc.arrayLayerCount = 1;
+  tex_view_desc.aspect = WGPUTextureAspect_All;
+  auto tex_id = wgpuTextureCreateView(targetImage, &tex_view_desc);
+
+  // store id
+  ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
+  auto found = app->m_TextureStorage.GetVoidPtr(tex_id_hash);
+  if (!found) {
+    app->m_TextureStorage.SetVoidPtr(tex_id_hash, tex_id);
+    app->m_TextureIdSet.insert(tex_id);
+  }
 }
 
 } // namespace Walnut

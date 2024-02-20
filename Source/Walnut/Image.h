@@ -20,6 +20,7 @@ public:
         const void *data = nullptr);
   ~Image();
 
+  static void InitModel(uint32_t width, uint32_t height);
   void SetData(const void *data);
 
   void SetImageViewId(WGPUTextureView *id);

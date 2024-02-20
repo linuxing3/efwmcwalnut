@@ -1579,41 +1579,6 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
   outTitlebarHeight = titlebarHeight;
 }
 
-void Application::initModel(uint32_t width, uint32_t height) {
-  // Create Texture/Image
-  WGPUTextureDescriptor tex_desc = {};
-  tex_desc.label = "Dear ImGui target Texture";
-  tex_desc.dimension = WGPUTextureDimension_2D;
-  tex_desc.size.width = width;   // width here
-  tex_desc.size.height = height; // height here
-  tex_desc.size.depthOrArrayLayers = 1;
-  tex_desc.sampleCount = 1;
-  tex_desc.format = m_swapChainFormat;
-  tex_desc.mipLevelCount = 1;
-  tex_desc.usage = WGPUTextureUsage_RenderAttachment |
-                   WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
-  auto targetImage = wgpuDeviceCreateTexture(m_device, &tex_desc);
-
-  // Create ImageView <-- DescriptorSet
-  WGPUTextureViewDescriptor tex_view_desc = {};
-  tex_view_desc.format = m_swapChainFormat;
-  tex_view_desc.dimension = WGPUTextureViewDimension_2D;
-  tex_view_desc.baseMipLevel = 0;
-  tex_view_desc.mipLevelCount = 1;
-  tex_view_desc.baseArrayLayer = 0;
-  tex_view_desc.arrayLayerCount = 1;
-  tex_view_desc.aspect = WGPUTextureAspect_All;
-  auto tex_id = wgpuTextureCreateView(targetImage, &tex_view_desc);
-
-  // store id
-  ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
-  auto found = m_TextureStorage.GetVoidPtr(tex_id_hash);
-  if (!found) {
-    m_TextureStorage.SetVoidPtr(tex_id_hash, tex_id);
-    m_TextureIdSet.insert(tex_id);
-  }
-}
-
 void Application::updateModel(ImTextureID tex_id) {
   ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
   auto found = m_TextureStorage.GetVoidPtr(tex_id_hash);
