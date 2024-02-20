@@ -81,12 +81,12 @@ public:
   bool IsMaximized() const;
   GLFWwindow *GetWindowHandle() { return m_WindowHandle; };
 
-  TextureView GetCurrentTextureView() { return m_currentTextureView; }
   TextureView GetCurrentDepthView() { return m_depthTextureView; }
   vector<BindGroupEntry> GetBindings() { return m_bindingEntries; };
 
   static CommandBuffer
-  RunSingleCommand(function<void(RenderPassEncoder renderPass)> &&renderFunc);
+  RunSingleCommand(TextureView targetView,
+                   function<void(RenderPassEncoder renderPass)> &&renderFunc);
   static CommandBuffer RunSingleCommand(function<void()> &&prepareFunc);
 
 private:
@@ -126,6 +126,8 @@ private:
   using mat4x4 = glm::mat4x4;
   TextureFormat m_swapChainFormat = TextureFormat::RGBA8UnormSrgb;
   TextureFormat m_depthTextureFormat = TextureFormat::Depth32Float;
+
+  TextureView m_TargetImageView = nullptr;
 
   bool m_Running = false;
   // Everything that is initialized in `onInit` and needed in `onFrame`.
@@ -170,7 +172,6 @@ private:
 
   // @group(0) @binding(2) var baseColorTexture : texture_2d<f32>;
   vector<Texture> m_textures;
-  TextureView m_currentTextureView = nullptr;
   Texture m_depthTexture = nullptr;
   TextureView m_depthTextureView = nullptr;
 

@@ -78,7 +78,7 @@ Image::Image(std::string_view path) : m_Filepath(path) {
 
 Image::Image(uint32_t width, uint32_t height, TextureFormat format,
              const void *data)
-    : m_Width(width), m_Height(height) {
+    : m_Width(width), m_Height(height), m_Format(format) {
   AllocateMemory();
   if (data)
     SetData(data);

@@ -747,27 +747,59 @@ void Application::onFrame() {
   if (!nextTexture) {
     std::cerr << "Cannot acquire next swap chain texture" << std::endl;
   }
-  s_Instance->Get()->m_currentTextureView = nextTexture;
 
   {
-    auto command = RunSingleCommand([&](RenderPassEncoder renderPass) {
-      // draw ImGui
-      for (auto layer : m_LayerStack) {
-        layer->OnUpdate(m_uniforms.time);
-      }
-      updateGui(renderPass);
+    auto command =
+        RunSingleCommand(nextTexture, [&](RenderPassEncoder renderPass) {
+          // draw ImGui
+          for (auto layer : m_LayerStack) {
+            layer->OnUpdate(m_uniforms.time);
+          }
+          updateGui(renderPass);
 
-      // draw mesh
-      renderPass.setPipeline(m_pipeline);
-      renderPass.setVertexBuffer(
-          0, m_vertexBuffer, 0, m_vertexData.size() * sizeof(VertexAttributes));
-      renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
-      renderPass.draw(m_indexCount, 1, 0, 0);
-
-      renderPass.end();
-    });
+          renderPass.end();
+        });
     // submit
     wgpuTextureViewDrop(nextTexture);
+    m_device.getQueue().submit(command);
+  }
+
+  {
+    // Create Texture/Image
+    WGPUTextureDescriptor tex_desc = {};
+    tex_desc.label = "Dear ImGui target Texture";
+    tex_desc.dimension = WGPUTextureDimension_2D;
+    tex_desc.size.width = 945;   // width here
+    tex_desc.size.height = 1028; // height here
+    tex_desc.size.depthOrArrayLayers = 1;
+    tex_desc.sampleCount = 1;
+    tex_desc.format = m_swapChainFormat;
+    tex_desc.mipLevelCount = 1;
+    tex_desc.usage = WGPUTextureUsage_RenderAttachment |
+                     WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
+    auto targetImage = wgpuDeviceCreateTexture(m_device, &tex_desc);
+    // Create ImageView <-- DescriptorSet
+    WGPUTextureViewDescriptor tex_view_desc = {};
+    tex_view_desc.format = m_swapChainFormat;
+    tex_view_desc.dimension = WGPUTextureViewDimension_2D;
+    tex_view_desc.baseMipLevel = 0;
+    tex_view_desc.mipLevelCount = 1;
+    tex_view_desc.baseArrayLayer = 0;
+    tex_view_desc.arrayLayerCount = 1;
+    tex_view_desc.aspect = WGPUTextureAspect_All;
+    m_TargetImageView = wgpuTextureCreateView(targetImage, &tex_view_desc);
+    auto command =
+        RunSingleCommand(m_TargetImageView, [&](RenderPassEncoder renderPass) {
+          // draw mesh
+          renderPass.setPipeline(m_pipeline);
+          renderPass.setVertexBuffer(0, m_vertexBuffer, 0,
+                                     m_vertexData.size() *
+                                         sizeof(VertexAttributes));
+          renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
+          renderPass.draw(m_indexCount, 1, 0, 0);
+
+          renderPass.end();
+        });
     m_device.getQueue().submit(command);
   }
 
@@ -1059,6 +1091,14 @@ void Application::updateGui(RenderPassEncoder renderPass) {
   }
 
   {
+    ImGui::Begin("Model Image");
+    auto region = ImGui::GetContentRegionAvail();
+    ImGui::Image((ImTextureID)m_TargetImageView,
+                 {(float)region.x, (float)region.y});
+    ImGui::End();
+  }
+
+  {
 
     // bool changed = false;
     // ImGui::Begin("Lighting");
@@ -1120,6 +1160,7 @@ Application::RunSingleCommand(std::function<void()> &&prepareFunc) {
 }
 
 wgpu::CommandBuffer Application::RunSingleCommand(
+    TextureView targetView,
     std::function<void(RenderPassEncoder renderPass)> &&renderFunc) {
 
   CommandEncoderDescriptor commandEncoderDesc{};
@@ -1130,7 +1171,7 @@ wgpu::CommandBuffer Application::RunSingleCommand(
   RenderPassDescriptor renderPassDesc{};
 
   RenderPassColorAttachment colorAttachment;
-  colorAttachment.view = s_Instance->Get()->m_currentTextureView;
+  colorAttachment.view = targetView;
   colorAttachment.resolveTarget = nullptr;
   colorAttachment.loadOp = LoadOp::Clear;
   colorAttachment.storeOp = StoreOp::Store;

@@ -128,14 +128,6 @@ public:
                    ImVec2(0, 1), ImVec2(1, 0));
     }
 
-    // TODO: load image to file
-    ImGui::Begin("test GetTextureId");
-    if (m_TextureView) {
-      ImGui::Image((ImTextureID)m_TextureView,
-                   {(float)m_ViewportWidth, (float)m_ViewportHeight});
-    }
-    ImGui::End();
-
     ImGui::End();
     ImGui::PopStyleVar();
 
