@@ -34,7 +34,10 @@
 
 #include <GLFW/glfw3.h>
 #include <cstdint>
+#include <memory>
 #include <queue>
+#include <set>
+#include <unordered_map>
 #include <vector>
 #include <webgpu.hpp>
 
@@ -44,6 +47,10 @@
 
 using namespace wgpu;
 using namespace std;
+
+// Dear ImGui prototypes from imgui_internal.h
+// extern ImGuiID ImHashData(const void *data_p, size_t data_size, ImU32 seed =
+// 0);
 
 class Application {
 public:
@@ -119,6 +126,9 @@ private:
   void terminateBuffers();
   void UI_DrawMenubar();
 
+  void initModel(uint32_t width, uint32_t height);
+  void updateModel(ImTextureID tex_id);
+
 private:
   using vec2 = glm::vec2;
   using vec3 = glm::vec3;
@@ -126,8 +136,6 @@ private:
   using mat4x4 = glm::mat4x4;
   TextureFormat m_swapChainFormat = TextureFormat::RGBA8UnormSrgb;
   TextureFormat m_depthTextureFormat = TextureFormat::Depth32Float;
-
-  TextureView m_TargetImageView = nullptr;
 
   bool m_Running = false;
   // Everything that is initialized in `onInit` and needed in `onFrame`.
@@ -212,6 +220,12 @@ public:
     static_assert(is_base_of<Walnut::Layer, T>::value,
                   "Pushed type is not subclass of Layer!");
     m_LayerStack.emplace_back(make_shared<T>())->OnAttach();
+  }
+
+  ImGuiStorage m_TextureStorage;
+  set<ImTextureID> m_TextureIdSet;
+  void pushModelTexture(uint32_t width, uint32_t height) {
+    initModel(width, height);
   }
 
   template <typename Func> void QueueEvent(Func &&func) {

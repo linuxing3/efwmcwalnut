@@ -29,6 +29,7 @@
 #include "ImGui/ImGuiTheme.h"
 #include "ResourceManager.h"
 #include "Walnut/UI.h"
+#include <algorithm>
 #include <mutex>
 #include <thread>
 
@@ -144,6 +145,8 @@ bool Application::onInit() {
 
   m_Running = true;
   m_bufferSize = 64 * sizeof(float);
+  m_TextureStorage.Data.reserve(100);
+  m_TextureIdSet.clear();
 
   buildWindow();
   buildDeviceObject();
@@ -158,7 +161,19 @@ bool Application::onInit() {
   });
 #endif // WEBGPU_COMPUTE
   // FIXME: make pipeline optional
-  QueueEvent([this] { buildRenderPipeline(); });
+  QueueEvent([this] {
+    // [CPU] load empty texture for model geometry
+    // initModel(945, 1028);
+    // [CPU] load model geometry
+    bool success = ResourceManager::loadGeometryFromObj(
+        RESOURCE_DIR "/fourareen.obj", m_vertexData);
+    if (!success) {
+      std::cerr << "Could not load geometry!" << std::endl;
+    }
+
+    buildRenderPipeline();
+  });
+
   initGui();
   return true;
 }
@@ -400,13 +415,6 @@ void Application::buildRenderPipeline() {
   ShaderModule shaderModule =
       ResourceManager::loadShaderModule(RESOURCE_DIR "/shader.wsl", m_device);
   std::cout << "Shader module: " << shaderModule << std::endl;
-
-  // [CPU] load geometry
-  bool success = ResourceManager::loadGeometryFromObj(
-      RESOURCE_DIR "/fourareen.obj", m_vertexData);
-  if (!success) {
-    std::cerr << "Could not load geometry!" << std::endl;
-  }
 
   // [GPU] Create vertex buffer
   BufferDescriptor bufferDesc;
@@ -765,42 +773,13 @@ void Application::onFrame() {
   }
 
   {
-    // Create Texture/Image
-    WGPUTextureDescriptor tex_desc = {};
-    tex_desc.label = "Dear ImGui target Texture";
-    tex_desc.dimension = WGPUTextureDimension_2D;
-    tex_desc.size.width = 945;   // width here
-    tex_desc.size.height = 1028; // height here
-    tex_desc.size.depthOrArrayLayers = 1;
-    tex_desc.sampleCount = 1;
-    tex_desc.format = m_swapChainFormat;
-    tex_desc.mipLevelCount = 1;
-    tex_desc.usage = WGPUTextureUsage_RenderAttachment |
-                     WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
-    auto targetImage = wgpuDeviceCreateTexture(m_device, &tex_desc);
-    // Create ImageView <-- DescriptorSet
-    WGPUTextureViewDescriptor tex_view_desc = {};
-    tex_view_desc.format = m_swapChainFormat;
-    tex_view_desc.dimension = WGPUTextureViewDimension_2D;
-    tex_view_desc.baseMipLevel = 0;
-    tex_view_desc.mipLevelCount = 1;
-    tex_view_desc.baseArrayLayer = 0;
-    tex_view_desc.arrayLayerCount = 1;
-    tex_view_desc.aspect = WGPUTextureAspect_All;
-    m_TargetImageView = wgpuTextureCreateView(targetImage, &tex_view_desc);
-    auto command =
-        RunSingleCommand(m_TargetImageView, [&](RenderPassEncoder renderPass) {
-          // draw mesh
-          renderPass.setPipeline(m_pipeline);
-          renderPass.setVertexBuffer(0, m_vertexBuffer, 0,
-                                     m_vertexData.size() *
-                                         sizeof(VertexAttributes));
-          renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
-          renderPass.draw(m_indexCount, 1, 0, 0);
-
-          renderPass.end();
-        });
-    m_device.getQueue().submit(command);
+    for (auto &tex_id : m_TextureIdSet) {
+      ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
+      auto found = m_TextureStorage.GetVoidPtr(tex_id_hash);
+      if (found) {
+        updateModel(tex_id);
+      }
+    };
   }
 
   {
@@ -1090,44 +1069,45 @@ void Application::updateGui(RenderPassEncoder renderPass) {
     ImGui::End();
   }
 
+  // iterate m_TextureMap to get Keyboard
+  for (auto &tex_id : m_TextureIdSet) {
+    ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
+    auto found = m_TextureStorage.GetVoidPtr(tex_id_hash);
+    if (found) {
+      ImGui::Begin("Image");
+      auto region = ImGui::GetContentRegionAvail();
+      ImGui::Image((ImTextureID)tex_id, {(float)region.x, (float)region.y});
+      ImGui::End();
+    }
+  };
+
   {
-    ImGui::Begin("Model Image");
-    auto region = ImGui::GetContentRegionAvail();
-    ImGui::Image((ImTextureID)m_TargetImageView,
-                 {(float)region.x, (float)region.y});
+    bool changed = false;
+    ImGui::Begin("Lighting");
+    changed = ImGui::ColorEdit3("Color #0",
+                                glm::value_ptr(m_lightingUniforms.colors[0])) ||
+              changed;
+    changed = ImGui::DragDirection("Direction #0",
+                                   m_lightingUniforms.directions[0]) ||
+              changed;
+    changed = ImGui::ColorEdit3("Color #1",
+                                glm::value_ptr(m_lightingUniforms.colors[1])) ||
+              changed;
+    changed = ImGui::DragDirection("Direction #1",
+                                   m_lightingUniforms.directions[1]) ||
+              changed;
+    changed = ImGui::SliderFloat("Hardness", &m_lightingUniforms.hardness,
+                                 0.01f, 128.0f) ||
+              changed;
+    changed =
+        ImGui::SliderFloat("K Diffuse", &m_lightingUniforms.kd, 0.0f, 2.0f) ||
+        changed;
+    changed =
+        ImGui::SliderFloat("K Specular", &m_lightingUniforms.ks, 0.0f, 2.0f) ||
+        changed;
     ImGui::End();
-  }
 
-  {
-
-    // bool changed = false;
-    // ImGui::Begin("Lighting");
-    // changed = ImGui::ColorEdit3("Color #0",
-    //                             glm::value_ptr(m_lightingUniforms.colors[0]))
-    //                             ||
-    //           changed;
-    // changed = ImGui::DragDirection("Direction #0",
-    //                                m_lightingUniforms.directions[0]) ||
-    //           changed;
-    // changed = ImGui::ColorEdit3("Color #1",
-    //                             glm::value_ptr(m_lightingUniforms.colors[1]))
-    //                             ||
-    //           changed;
-    // changed = ImGui::DragDirection("Direction #1",
-    //                                m_lightingUniforms.directions[1]) ||
-    //           changed;
-    // changed = ImGui::SliderFloat("Hardness", &m_lightingUniforms.hardness,
-    //                              0.01f, 128.0f) ||
-    //           changed;
-    // changed =
-    //     ImGui::SliderFloat("K Diffuse", &m_lightingUniforms.kd, 0.0f, 2.0f)
-    //     || changed;
-    // changed =
-    //     ImGui::SliderFloat("K Specular", &m_lightingUniforms.ks, 0.0f, 2.0f)
-    //     || changed;
-    // ImGui::End();
-
-    // m_lightingUniformsChanged = changed;
+    m_lightingUniformsChanged = changed;
   }
 
   // Render
@@ -1599,4 +1579,60 @@ void Application::UI_DrawTitlebar(float &outTitlebarHeight) {
   ImGui::EndHorizontal();
 
   outTitlebarHeight = titlebarHeight;
+}
+
+void Application::initModel(uint32_t width, uint32_t height) {
+  // Create Texture/Image
+  WGPUTextureDescriptor tex_desc = {};
+  tex_desc.label = "Dear ImGui target Texture";
+  tex_desc.dimension = WGPUTextureDimension_2D;
+  tex_desc.size.width = width;   // width here
+  tex_desc.size.height = height; // height here
+  tex_desc.size.depthOrArrayLayers = 1;
+  tex_desc.sampleCount = 1;
+  tex_desc.format = m_swapChainFormat;
+  tex_desc.mipLevelCount = 1;
+  tex_desc.usage = WGPUTextureUsage_RenderAttachment |
+                   WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
+  auto targetImage = wgpuDeviceCreateTexture(m_device, &tex_desc);
+
+  // Create ImageView <-- DescriptorSet
+  WGPUTextureViewDescriptor tex_view_desc = {};
+  tex_view_desc.format = m_swapChainFormat;
+  tex_view_desc.dimension = WGPUTextureViewDimension_2D;
+  tex_view_desc.baseMipLevel = 0;
+  tex_view_desc.mipLevelCount = 1;
+  tex_view_desc.baseArrayLayer = 0;
+  tex_view_desc.arrayLayerCount = 1;
+  tex_view_desc.aspect = WGPUTextureAspect_All;
+  auto tex_id = wgpuTextureCreateView(targetImage, &tex_view_desc);
+
+  // store id
+  ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
+  auto found = m_TextureStorage.GetVoidPtr(tex_id_hash);
+  if (!found) {
+    m_TextureStorage.SetVoidPtr(tex_id_hash, tex_id);
+    m_TextureIdSet.insert(tex_id);
+  }
+}
+
+void Application::updateModel(ImTextureID tex_id) {
+  ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
+  auto found = m_TextureStorage.GetVoidPtr(tex_id_hash);
+  if (found) {
+    // update
+    auto command = RunSingleCommand(
+        (WGPUTextureView)tex_id, [&](RenderPassEncoder renderPass) {
+          // draw mesh
+          renderPass.setPipeline(m_pipeline);
+          renderPass.setVertexBuffer(0, m_vertexBuffer, 0,
+                                     m_vertexData.size() *
+                                         sizeof(VertexAttributes));
+          renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
+          renderPass.draw(m_indexCount, 1, 0, 0);
+
+          renderPass.end();
+        });
+    m_device.getQueue().submit(command);
+  }
 }

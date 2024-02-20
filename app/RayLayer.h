@@ -57,10 +57,7 @@ public:
       m_Scene.Spheres.push_back(sphere);
     }
 
-    //
-    ResourceManager::loadTexture(RESOURCE_DIR "/fourareen2K_albedo.jpg",
-                                 Application::Get()->GetDevice(),
-                                 &m_TextureView);
+    Application::Get()->pushModelTexture(945, 1028);
   }
 
   virtual void OnUpdate(float ts) override { m_Camera.OnUpdate(ts); }
