@@ -85,6 +85,10 @@ public:
   Device GetDevice() { return m_device; };
   Queue GetQueue() { return m_device.getQueue(); };
 
+  vector<ResourceManager::VertexAttributes> &GetVertexData() {
+    return m_vertexData;
+  };
+
   bool IsMaximized() const;
   GLFWwindow *GetWindowHandle() { return m_WindowHandle; };
 

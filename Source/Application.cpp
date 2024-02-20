@@ -162,8 +162,6 @@ bool Application::onInit() {
 #endif // WEBGPU_COMPUTE
   // FIXME: make pipeline optional
   QueueEvent([this] {
-    // [CPU] load empty texture for model geometry
-    // initModel(945, 1028);
     // [CPU] load model geometry
     bool success = ResourceManager::loadGeometryFromObj(
         RESOURCE_DIR "/fourareen.obj", m_vertexData);
