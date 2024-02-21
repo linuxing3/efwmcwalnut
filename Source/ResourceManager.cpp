@@ -28,6 +28,8 @@
 
 #include "stb_image.h"
 #include "tiny_obj_loader.h"
+#include "webgpu.hpp"
+#include <cstdint>
 #include <cstring>
 #include <memory>
 
@@ -276,4 +278,66 @@ Texture ResourceManager::loadTexture(const path &path, Device device,
   return texture;
 }
 
+// Creating a Texture in General Way
+Texture ResourceManager::initTexture(const uint32_t width,
+                                     const uint32_t height,
+                                     TextureUsageFlags usage,
+                                     TextureFormat format, Device device,
+                                     TextureView *pTextureView,
+                                     Sampler *pSampler) {
 
+  WGPUTextureDescriptor tex_desc = {};
+  tex_desc.label = "Dear ImGui target Texture";
+  tex_desc.dimension = WGPUTextureDimension_2D;
+  tex_desc.size.width = width;   // width here
+  tex_desc.size.height = height; // height here
+  tex_desc.size.depthOrArrayLayers = 1;
+  tex_desc.sampleCount = 1;
+  tex_desc.format = format;
+  tex_desc.mipLevelCount = 1;
+  tex_desc.usage = WGPUTextureUsage_RenderAttachment |
+                   WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
+
+  Texture texture = device.createTexture(tex_desc);
+
+  /**/
+  WGPUTextureViewDescriptor tex_view_desc = {};
+  tex_view_desc.format = format;
+  tex_view_desc.dimension = WGPUTextureViewDimension_2D;
+  tex_view_desc.baseMipLevel = 0;
+  tex_view_desc.mipLevelCount = 1;
+  tex_view_desc.baseArrayLayer = 0;
+  tex_view_desc.arrayLayerCount = 1;
+  tex_view_desc.aspect = WGPUTextureAspect_All;
+
+  // Arguments telling how the C++ side pixel memory is laid out
+  if (pTextureView)
+    *pTextureView = texture.createView(tex_view_desc);
+
+  if (pSampler) {
+    // Create the associated sampler for Texture/Image
+    WGPUSamplerDescriptor sampler_desc = {};
+    sampler_desc.minFilter = WGPUFilterMode_Linear;
+    sampler_desc.magFilter = WGPUFilterMode_Linear;
+    *pTextureView = texture.createView(tex_view_desc);
+
+    {
+      // Create the associated sampler for Texture/Image
+      WGPUSamplerDescriptor sampler_desc = {};
+      sampler_desc.minFilter = WGPUFilterMode_Linear;
+      sampler_desc.magFilter = WGPUFilterMode_Linear;
+#if defined(WEBGPU_BACKEND_WGPU)
+      sampler_desc.mipmapFilter = WGPUMipmapFilterMode_Linear;
+#else
+      sampler_desc.mipmapFilter = WGPUFilterMode_Linear;
+#endif
+      sampler_desc.addressModeU = WGPUAddressMode_Repeat;
+      sampler_desc.addressModeV = WGPUAddressMode_Repeat;
+      sampler_desc.addressModeW = WGPUAddressMode_Repeat;
+      sampler_desc.maxAnisotropy = 1;
+      *pSampler = wgpuDeviceCreateSampler(device, &sampler_desc);
+    }
+  }
+
+  return texture;
+}

@@ -66,4 +66,11 @@ public:
   // NB: The texture must be destroyed after use
   static wgpu::Texture loadTexture(const path &path, wgpu::Device device,
                                    wgpu::TextureView *pTextureView = nullptr);
+
+  static wgpu::Texture initTexture(const uint32_t width, const uint32_t height,
+                                   wgpu::TextureUsageFlags usage,
+                                   wgpu::TextureFormat format,
+                                   wgpu::Device device,
+                                   wgpu::TextureView *pTextureView,
+                                   wgpu::Sampler *pSampler);
 };

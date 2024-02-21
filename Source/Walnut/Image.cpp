@@ -3,6 +3,7 @@
 
 #include "Application.h"
 
+#include "ResourceManager.h"
 #include "imgui_internal.h"
 #include "vulkan/vulkan_core.h"
 #include <cstdint>
@@ -103,71 +104,20 @@ void Image::SetImageViewId(WGPUTextureView *textView) {
 
 void Image::AllocateMemory() {
   auto app = Application::Get();
-  wgpu::Device device = app->GetDevice();
-  TextureFormat swapChainFormat = app->GetSwapChainFormat();
+  Device device = app->GetDevice();
   m_Format = TextureFormat::RGBA8Unorm;
 
 #define IMGUI_WGPU
 #ifdef IMGUI_WGPU
   // Build texture atlas
+  m_Image = ResourceManager::initTexture(
+      m_Width, m_Height,
+      TextureUsage::RenderAttachment | TextureUsage::TextureBinding |
+          TextureUsage::CopyDst,
+      m_Format, device, &m_ImageView, &m_Sampler);
 
-  // NOTE: Upload texture to graphics system
-
-  {
-    // Create Texture/Image
-    WGPUTextureDescriptor tex_desc = {};
-    tex_desc.label = "Dear ImGui General Texture";
-    tex_desc.dimension = WGPUTextureDimension_2D;
-    tex_desc.size.width = m_Width;   // width here
-    tex_desc.size.height = m_Height; // height here
-    tex_desc.size.depthOrArrayLayers = 1;
-    tex_desc.sampleCount = 1;
-    tex_desc.format = m_Format;
-    tex_desc.mipLevelCount = 1;
-    tex_desc.usage = WGPUTextureUsage_RenderAttachment |
-                     WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
-    m_Image = wgpuDeviceCreateTexture(device, &tex_desc);
-
-    // Create ImageView <-- DescriptorSet
-    WGPUTextureViewDescriptor tex_view_desc = {};
-    tex_view_desc.format = m_Format;
-    tex_view_desc.dimension = WGPUTextureViewDimension_2D;
-    tex_view_desc.baseMipLevel = 0;
-    tex_view_desc.mipLevelCount = 1;
-    tex_view_desc.baseArrayLayer = 0;
-    tex_view_desc.arrayLayerCount = 1;
-    tex_view_desc.aspect = WGPUTextureAspect_All;
-    m_ImageView = wgpuTextureCreateView(m_Image, &tex_view_desc);
-  }
-
-  {
-    // Create the associated sampler for Texture/Image
-    WGPUSamplerDescriptor sampler_desc = {};
-    sampler_desc.minFilter = WGPUFilterMode_Linear;
-    sampler_desc.magFilter = WGPUFilterMode_Linear;
-#define WEBGPU_BACKEND_WGPU
-#if defined(WEBGPU_BACKEND_WGPU)
-    sampler_desc.mipmapFilter = WGPUMipmapFilterMode_Linear;
-#else
-    sampler_desc.mipmapFilter = WGPUFilterMode_Linear;
-#endif
-    sampler_desc.addressModeU = WGPUAddressMode_Repeat;
-    sampler_desc.addressModeV = WGPUAddressMode_Repeat;
-    sampler_desc.addressModeW = WGPUAddressMode_Repeat;
-    sampler_desc.maxAnisotropy = 1;
-    m_Sampler = wgpuDeviceCreateSampler(device, &sampler_desc);
-  }
-
-  std::cout << "Walnut image : " << m_Image << std::endl;
-  std::cout << "Walnut image view: " << m_ImageView << std::endl;
-  std::cout << "Walnut image sampler: " << m_Sampler << std::endl;
-
-  static_assert(sizeof(ImTextureID) >= sizeof(m_Image));
-  // NOTE: Store our identifier, just a pointer in depth to memory
   m_DescriptorSet = (VkDescriptorSet)(ImTextureID)m_ImageView;
 #endif // IMGUI_WGPU
-
-  std::cout << "Walnut image Descriptorset: " << m_DescriptorSet << std::endl;
 }
 
 void Image::Release() {
@@ -178,7 +128,7 @@ void Image::Release() {
 }
 
 void Image::SetData(const void *data) {
-  wgpu::Device device = Application::Get()->GetDevice();
+  Device device = Application::Get()->GetDevice();
   // size_pp: RGBA8Unorm = 4 bytes = 32 bits
   size_t size_pp = Utils::BytesPerPixel(m_Format);
   size_t upload_size = m_Width * m_Height * size_pp;
@@ -235,34 +185,17 @@ void *Image::Decode(const void *buffer, uint64_t length, uint32_t &outWidth,
 
 void Image::InitModel(uint32_t width, uint32_t height) {
   auto app = Application::Get();
-  wgpu::Device device = app->GetDevice();
+  Device device = app->GetDevice();
   TextureFormat swapChainFormat = app->GetSwapChainFormat();
-  // Create Texture/Image
-  WGPUTextureDescriptor tex_desc = {};
-  tex_desc.label = "Dear ImGui target Texture";
-  tex_desc.dimension = WGPUTextureDimension_2D;
-  tex_desc.size.width = width;   // width here
-  tex_desc.size.height = height; // height here
-  tex_desc.size.depthOrArrayLayers = 1;
-  tex_desc.sampleCount = 1;
-  tex_desc.format = swapChainFormat;
-  tex_desc.mipLevelCount = 1;
-  tex_desc.usage = WGPUTextureUsage_RenderAttachment |
-                   WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
-  auto targetImage = wgpuDeviceCreateTexture(device, &tex_desc);
 
-  // Create ImageView <-- DescriptorSet
-  WGPUTextureViewDescriptor tex_view_desc = {};
-  tex_view_desc.format = swapChainFormat;
-  tex_view_desc.dimension = WGPUTextureViewDimension_2D;
-  tex_view_desc.baseMipLevel = 0;
-  tex_view_desc.mipLevelCount = 1;
-  tex_view_desc.baseArrayLayer = 0;
-  tex_view_desc.arrayLayerCount = 1;
-  tex_view_desc.aspect = WGPUTextureAspect_All;
-  auto tex_id = wgpuTextureCreateView(targetImage, &tex_view_desc);
+  TextureView tex_id = nullptr;
+  Sampler sampler = nullptr;
 
-  // store id
+  ResourceManager::initTexture(width, height,
+                               TextureUsage::RenderAttachment |
+                                   TextureUsage::TextureBinding |
+                                   TextureUsage::CopyDst,
+                               swapChainFormat, device, &tex_id, &sampler);
   ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
   auto found = app->m_TextureStorage.GetVoidPtr(tex_id_hash);
   if (!found) {

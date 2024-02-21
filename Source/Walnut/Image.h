@@ -5,6 +5,7 @@
 #include "imgui.h"
 #include "vulkan/vulkan_core.h"
 
+#include "webgpu.h"
 #include <webgpu.hpp>
 
 namespace Walnut {
