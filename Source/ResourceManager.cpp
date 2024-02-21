@@ -179,7 +179,8 @@ Texture ResourceManager::loadTexture(const path &path, Device device,
       bit_width(std::max(textureDesc.size.width, textureDesc.size.height));
   ;
   textureDesc.sampleCount = 1;
-  textureDesc.usage = TextureUsage::TextureBinding | TextureUsage::CopyDst;
+  textureDesc.usage = TextureUsage::RenderAttachment |
+                      TextureUsage::TextureBinding | TextureUsage::CopyDst;
   textureDesc.viewFormatCount = 0;
   textureDesc.viewFormats = nullptr;
   Texture texture = device.createTexture(textureDesc);

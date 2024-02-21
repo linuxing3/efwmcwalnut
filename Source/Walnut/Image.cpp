@@ -6,7 +6,6 @@
 #include "ResourceManager.h"
 #include "imgui_internal.h"
 #include "vulkan/vulkan_core.h"
-#include <cmath>
 #include <cstdint>
 
 /* #ifndef STB_IMAGE_IMPLEMENTATION */
@@ -21,40 +20,6 @@ using namespace wgpu;
 namespace Walnut {
 
 namespace Utils {
-
-static uint32_t bit_width(uint32_t m) {
-  if (m == 0)
-    return 0;
-  else {
-    uint32_t w = 0;
-    while (m >>= 1)
-      ++w;
-    return w;
-  }
-}
-static uint32_t BytesPerPixel(WGPUTextureFormat format) {
-  if (format == TextureFormat::RGBA8Unorm)
-    return 4;
-  if (format == TextureFormat::RGBA32Float)
-    return 16;
-  return 0;
-}
-
-static uint32_t BytesPerPixel(Walnut::ImageFormat format) {
-  if (format == Walnut::ImageFormat::RGBA)
-    return 4;
-  if (format == Walnut::ImageFormat::RGBA32F)
-    return 16;
-  return 0;
-}
-static VkFormat WalnutFormatToVulkan(Walnut::ImageFormat format) {
-  if (format == Walnut::ImageFormat::RGBA)
-    return VK_FORMAT_R8G8B8A8_UNORM;
-  if (format == Walnut::ImageFormat::RGBA32F)
-    return VK_FORMAT_R32G32B32A32_SFLOAT;
-  return (VkFormat)0;
-}
-
 static TextureFormat WalnutFormatToWGPU(Walnut::ImageFormat format) {
   if (format == Walnut::ImageFormat::RGBA)
     return TextureFormat::RGBA8Unorm;
@@ -74,7 +39,6 @@ Image::Image(std::string_view path) : m_Filepath(path) {
 
   m_Width = width;
   m_Height = height;
-  m_Format = TextureFormat::RGBA8Unorm;
 
   AllocateMemory();
   SetData(data);
@@ -107,23 +71,27 @@ void Image::AllocateMemory() {
       m_Width, m_Height,
       TextureUsage::RenderAttachment | TextureUsage::TextureBinding |
           TextureUsage::CopyDst,
-      m_Format, device, &m_ImageView, &m_Sampler, true);
+      m_Format, device, &m_ImageView, &m_Sampler, m_MipLevelEnabled);
 
   m_DescriptorSet = (VkDescriptorSet)(ImTextureID)m_ImageView;
 }
 
 void Image::Release() {
   wgpuSamplerDrop(m_Sampler);
+  m_Sampler = nullptr;
   wgpuTextureViewDrop(m_ImageView);
+  m_ImageView = nullptr;
   wgpuTextureDrop(m_Image);
+  m_Image = nullptr;
   wgpuBufferDrop(m_StagingBuffer);
+  m_StagingBuffer = nullptr;
 }
 
 void Image::SetData(const void *data) {
   Device device = Application::Get()->GetDevice();
 
   if (!ResourceManager::updateTexture(m_Width, m_Height, m_Format, device,
-                                      &m_Image, data, true)) {
+                                      &m_Image, data, m_MipLevelEnabled)) {
     std::cerr << "Could not set data to texture!" << std::endl;
   };
 }

@@ -50,6 +50,8 @@ private:
   wgpu::Sampler m_Sampler = nullptr;
   wgpu::Buffer m_StagingBuffer = nullptr;
 
+  bool m_MipLevelEnabled = false;
+
   size_t m_AlignedSize = 0;
 
   VkDescriptorSet m_DescriptorSet = nullptr;
