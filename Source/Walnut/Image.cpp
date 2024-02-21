@@ -107,7 +107,7 @@ void Image::AllocateMemory() {
       m_Width, m_Height,
       TextureUsage::RenderAttachment | TextureUsage::TextureBinding |
           TextureUsage::CopyDst,
-      m_Format, device, &m_ImageView, &m_Sampler);
+      m_Format, device, &m_ImageView, &m_Sampler, true);
 
   m_DescriptorSet = (VkDescriptorSet)(ImTextureID)m_ImageView;
 }
@@ -123,7 +123,7 @@ void Image::SetData(const void *data) {
   Device device = Application::Get()->GetDevice();
 
   if (!ResourceManager::updateTexture(m_Width, m_Height, m_Format, device,
-                                      &m_Image, data)) {
+                                      &m_Image, data, true)) {
     std::cerr << "Could not set data to texture!" << std::endl;
   };
 }

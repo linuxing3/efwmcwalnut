@@ -70,9 +70,10 @@ public:
   static Texture initTexture(const uint32_t width, const uint32_t height,
                              TextureUsageFlags usage, TextureFormat format,
                              Device device, TextureView *pTextureView,
-                             Sampler *pSampler);
+                             Sampler *pSampler, bool mipLevelEnabled = false);
 
   static bool updateTexture(const uint32_t width, const uint32_t height,
                             TextureFormat format, Device device,
-                            Texture *pTexture, const void *data);
+                            Texture *pTexture, const void *data,
+                            bool mipLevelEnabled = false);
 };

@@ -285,8 +285,11 @@ Texture ResourceManager::initTexture(const uint32_t width,
                                      TextureUsageFlags usage,
                                      TextureFormat format, Device device,
                                      TextureView *pTextureView,
-                                     Sampler *pSampler) {
+                                     Sampler *pSampler, bool mipLevelEnabled) {
 
+  Extent3D mipLevelSize = {(unsigned int)width, (unsigned int)height, 1};
+  uint32_t mipLevelCount =
+      bit_width(std::max(mipLevelSize.width, mipLevelSize.height));
   WGPUTextureDescriptor tex_desc = {};
   tex_desc.label = "Dear ImGui target Texture";
   tex_desc.dimension = WGPUTextureDimension_2D;
@@ -295,7 +298,7 @@ Texture ResourceManager::initTexture(const uint32_t width,
   tex_desc.size.depthOrArrayLayers = 1;
   tex_desc.sampleCount = 1;
   tex_desc.format = format;
-  tex_desc.mipLevelCount = 1;
+  tex_desc.mipLevelCount = mipLevelEnabled ? mipLevelCount : 1;
   tex_desc.usage = WGPUTextureUsage_RenderAttachment |
                    WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
 
@@ -305,7 +308,7 @@ Texture ResourceManager::initTexture(const uint32_t width,
   tex_view_desc.format = format;
   tex_view_desc.dimension = WGPUTextureViewDimension_2D;
   tex_view_desc.baseMipLevel = 0;
-  tex_view_desc.mipLevelCount = 1;
+  tex_view_desc.mipLevelCount = mipLevelEnabled ? mipLevelCount : 1;
   tex_view_desc.baseArrayLayer = 0;
   tex_view_desc.arrayLayerCount = 1;
   tex_view_desc.aspect = WGPUTextureAspect_All;
@@ -338,7 +341,8 @@ Texture ResourceManager::initTexture(const uint32_t width,
 
 bool ResourceManager::updateTexture(uint32_t width, uint32_t height,
                                     TextureFormat format, Device device,
-                                    Texture *pTexture, const void *data) {
+                                    Texture *pTexture, const void *data,
+                                    bool mipLevelEnabled) {
 
   if (data == nullptr || pTexture == nullptr) {
     std::cerr << "Could not load data!" << std::endl;
@@ -367,6 +371,72 @@ bool ResourceManager::updateTexture(uint32_t width, uint32_t height,
   layout.rowsPerImage = height;           // 行数
   WGPUExtent3D size = {width, height, 1}; // size here
   // NOTE: write data to texture with specific size and layout
+
+  if (mipLevelEnabled) {
+    // Arguments telling how the C++ side pixel memory is laid out
+    TextureDataLayout source;
+    source.offset = 0;
+
+    // Create image data
+    Extent3D mipLevelSize = {(unsigned int)width, (unsigned int)height, 1};
+    std::vector<uint8_t> previousLevelPixels;
+    Extent3D previousMipLevelSize;
+
+    uint32_t mipLevelCount =
+        bit_width(std::max(mipLevelSize.width, mipLevelSize.height));
+
+    for (uint32_t level = 0; level < mipLevelCount; ++level) {
+      std::vector<uint8_t> pixels(4 * mipLevelSize.width * mipLevelSize.height);
+      if (level == 0) {
+        // We cannot really avoid this copy since we need this
+        // in previousLevelPixels at the next iteration
+        memcpy(pixels.data(), data, pixels.size());
+      } else {
+        // Create mip level data
+        for (uint32_t i = 0; i < mipLevelSize.width; ++i) {
+          for (uint32_t j = 0; j < mipLevelSize.height; ++j) {
+            uint8_t *p = &pixels[4 * (j * mipLevelSize.width + i)];
+            // Get the corresponding 4 pixels from the previous level
+            uint8_t *p00 =
+                &previousLevelPixels[4 *
+                                     ((2 * j + 0) * previousMipLevelSize.width +
+                                      (2 * i + 0))];
+            uint8_t *p01 =
+                &previousLevelPixels[4 *
+                                     ((2 * j + 0) * previousMipLevelSize.width +
+                                      (2 * i + 1))];
+            uint8_t *p10 =
+                &previousLevelPixels[4 *
+                                     ((2 * j + 1) * previousMipLevelSize.width +
+                                      (2 * i + 0))];
+            uint8_t *p11 =
+                &previousLevelPixels[4 *
+                                     ((2 * j + 1) * previousMipLevelSize.width +
+                                      (2 * i + 1))];
+            // Average
+            p[0] = (p00[0] + p01[0] + p10[0] + p11[0]) / 4;
+            p[1] = (p00[1] + p01[1] + p10[1] + p11[1]) / 4;
+            p[2] = (p00[2] + p01[2] + p10[2] + p11[2]) / 4;
+            p[3] = (p00[3] + p01[3] + p10[3] + p11[3]) / 4;
+          }
+        }
+      }
+
+      // Upload data to the GPU texture
+      dst_view.mipLevel = level;
+      source.bytesPerRow = 4 * mipLevelSize.width;
+      source.rowsPerImage = mipLevelSize.height;
+      device.getQueue().writeTexture(dst_view, pixels.data(), pixels.size(),
+                                     source, mipLevelSize);
+
+      previousLevelPixels = std::move(pixels);
+      previousMipLevelSize = mipLevelSize;
+      mipLevelSize.width /= 2;
+      mipLevelSize.height /= 2;
+    }
+    return true;
+  }
+
   wgpuQueueWriteTexture(device.getQueue(), &dst_view, data,
                         width * height * size_pp, &layout, &size);
 
