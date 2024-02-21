@@ -77,13 +77,9 @@ void Image::AllocateMemory() {
 }
 
 void Image::Release() {
-  wgpuSamplerDrop(m_Sampler);
   m_Sampler = nullptr;
-  wgpuTextureViewDrop(m_ImageView);
   m_ImageView = nullptr;
-  wgpuTextureDrop(m_Image);
   m_Image = nullptr;
-  wgpuBufferDrop(m_StagingBuffer);
   m_StagingBuffer = nullptr;
 }
 
