@@ -26,12 +26,11 @@
 
 #include "ResourceManager.h"
 
-#include "stb_image.h"
+#include "stb/stb_image.h"
 #include "tiny_obj_loader.h"
 #include "webgpu.hpp"
 #include <cstdint>
 #include <cstring>
-#include <memory>
 
 #include <fstream>
 #include <sys/types.h>

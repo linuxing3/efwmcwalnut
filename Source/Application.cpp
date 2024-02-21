@@ -41,7 +41,7 @@
 #include "webgpu.hpp"
 #include "wgpu.h" // wgpuTextureViewDrop
 #include <GLFW/glfw3.h>
-#include <stb_image.h>
+#include <stb/stb_image.h>
 
 #include <cstdint>
 #include <sys/types.h>
