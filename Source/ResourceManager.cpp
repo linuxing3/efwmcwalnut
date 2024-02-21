@@ -34,6 +34,7 @@
 #include <memory>
 
 #include <fstream>
+#include <sys/types.h>
 
 using namespace wgpu;
 
@@ -278,7 +279,7 @@ Texture ResourceManager::loadTexture(const path &path, Device device,
   return texture;
 }
 
-// Creating a Texture in General Way
+// Creating a Texture in easy Way
 Texture ResourceManager::initTexture(const uint32_t width,
                                      const uint32_t height,
                                      TextureUsageFlags usage,
@@ -300,7 +301,6 @@ Texture ResourceManager::initTexture(const uint32_t width,
 
   Texture texture = device.createTexture(tex_desc);
 
-  /**/
   WGPUTextureViewDescriptor tex_view_desc = {};
   tex_view_desc.format = format;
   tex_view_desc.dimension = WGPUTextureViewDimension_2D;
@@ -309,18 +309,12 @@ Texture ResourceManager::initTexture(const uint32_t width,
   tex_view_desc.baseArrayLayer = 0;
   tex_view_desc.arrayLayerCount = 1;
   tex_view_desc.aspect = WGPUTextureAspect_All;
-
   // Arguments telling how the C++ side pixel memory is laid out
-  if (pTextureView)
+  if (pTextureView) {
     *pTextureView = texture.createView(tex_view_desc);
+  }
 
   if (pSampler) {
-    // Create the associated sampler for Texture/Image
-    WGPUSamplerDescriptor sampler_desc = {};
-    sampler_desc.minFilter = WGPUFilterMode_Linear;
-    sampler_desc.magFilter = WGPUFilterMode_Linear;
-    *pTextureView = texture.createView(tex_view_desc);
-
     {
       // Create the associated sampler for Texture/Image
       WGPUSamplerDescriptor sampler_desc = {};
@@ -341,3 +335,40 @@ Texture ResourceManager::initTexture(const uint32_t width,
 
   return texture;
 }
+
+bool ResourceManager::updateTexture(uint32_t width, uint32_t height,
+                                    TextureFormat format, Device device,
+                                    Texture *pTexture, const void *data) {
+
+  if (data == nullptr || pTexture == nullptr) {
+    std::cerr << "Could not load data!" << std::endl;
+    return false;
+  }
+
+  if (width <= 0 || height <= 0) {
+    std::cerr << "Height and width can't not be 0 or less!" << std::endl;
+    return false;
+  }
+
+  uint32_t size_pp = 4;
+  if (format == TextureFormat::RGBA8Unorm)
+    size_pp = 4;
+  if (format == TextureFormat::RGBA32Float)
+    size_pp = 16;
+
+  WGPUImageCopyTexture dst_view = {};
+  dst_view.texture = *pTexture;
+  dst_view.mipLevel = 0;
+  dst_view.origin = {0, 0, 0};
+  dst_view.aspect = WGPUTextureAspect_All;
+  WGPUTextureDataLayout layout = {};
+  layout.offset = 0;
+  layout.bytesPerRow = width * size_pp;   // 列数 * 像素尺寸
+  layout.rowsPerImage = height;           // 行数
+  WGPUExtent3D size = {width, height, 1}; // size here
+  // NOTE: write data to texture with specific size and layout
+  wgpuQueueWriteTexture(device.getQueue(), &dst_view, data,
+                        width * height * size_pp, &layout, &size);
+
+  return true;
+};

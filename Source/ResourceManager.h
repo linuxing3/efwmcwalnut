@@ -32,6 +32,7 @@
 
 #include <filesystem>
 
+using namespace wgpu;
 // create a class named Manager
 // create a private property named path, representing the path to the resources
 // create a public setter and getter of property path
@@ -55,8 +56,7 @@ public:
   using path = std::filesystem::path;
 
   // Load a shader from a WGSL file into a new shader module
-  static wgpu::ShaderModule loadShaderModule(const path &path,
-                                             wgpu::Device device);
+  static ShaderModule loadShaderModule(const path &path, Device device);
 
   // Load an 3D mesh from a standard .obj file into a vertex data buffer
   static bool loadGeometryFromObj(const path &path,
@@ -64,13 +64,15 @@ public:
 
   // Load an image from a standard image file into a new texture object
   // NB: The texture must be destroyed after use
-  static wgpu::Texture loadTexture(const path &path, wgpu::Device device,
-                                   wgpu::TextureView *pTextureView = nullptr);
+  static Texture loadTexture(const path &path, Device device,
+                             TextureView *pTextureView = nullptr);
 
-  static wgpu::Texture initTexture(const uint32_t width, const uint32_t height,
-                                   wgpu::TextureUsageFlags usage,
-                                   wgpu::TextureFormat format,
-                                   wgpu::Device device,
-                                   wgpu::TextureView *pTextureView,
-                                   wgpu::Sampler *pSampler);
+  static Texture initTexture(const uint32_t width, const uint32_t height,
+                             TextureUsageFlags usage, TextureFormat format,
+                             Device device, TextureView *pTextureView,
+                             Sampler *pSampler);
+
+  static bool updateTexture(const uint32_t width, const uint32_t height,
+                            TextureFormat format, Device device,
+                            Texture *pTexture, const void *data);
 };

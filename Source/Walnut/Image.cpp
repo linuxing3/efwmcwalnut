@@ -6,6 +6,7 @@
 #include "ResourceManager.h"
 #include "imgui_internal.h"
 #include "vulkan/vulkan_core.h"
+#include <cmath>
 #include <cstdint>
 
 /* #ifndef STB_IMAGE_IMPLEMENTATION */
@@ -13,6 +14,7 @@
 /* #endif // !STB_IMAGE_IMPLEMENTATION */
 #include "stb_image.h"
 #include "webgpu.hpp"
+#include "wgpu.h" // wgpuTextureViewDrop
 
 using namespace wgpu;
 
@@ -90,6 +92,7 @@ Image::Image(uint32_t width, uint32_t height, TextureFormat format,
 Image::Image(uint32_t width, uint32_t height, ImageFormat format,
              const void *data)
     : m_Width(width), m_Height(height) {
+  m_Format = Utils::WalnutFormatToWGPU(format);
   AllocateMemory();
   if (data)
     SetData(data);
@@ -97,19 +100,9 @@ Image::Image(uint32_t width, uint32_t height, ImageFormat format,
 
 Image::~Image() { Release(); }
 
-void Image::SetImageViewId(WGPUTextureView *textView) {
-  m_ImageView = *textView;
-  m_DescriptorSet = (VkDescriptorSet)(ImTextureID)m_ImageView;
-}
-
 void Image::AllocateMemory() {
   auto app = Application::Get();
   Device device = app->GetDevice();
-  m_Format = TextureFormat::RGBA8Unorm;
-
-#define IMGUI_WGPU
-#ifdef IMGUI_WGPU
-  // Build texture atlas
   m_Image = ResourceManager::initTexture(
       m_Width, m_Height,
       TextureUsage::RenderAttachment | TextureUsage::TextureBinding |
@@ -117,48 +110,27 @@ void Image::AllocateMemory() {
       m_Format, device, &m_ImageView, &m_Sampler);
 
   m_DescriptorSet = (VkDescriptorSet)(ImTextureID)m_ImageView;
-#endif // IMGUI_WGPU
 }
 
 void Image::Release() {
-  m_Sampler = nullptr;
-  m_ImageView = nullptr;
-  m_Image = nullptr;
-  m_StagingBuffer = nullptr;
+  wgpuSamplerDrop(m_Sampler);
+  wgpuTextureViewDrop(m_ImageView);
+  wgpuTextureDrop(m_Image);
+  wgpuBufferDrop(m_StagingBuffer);
 }
 
 void Image::SetData(const void *data) {
   Device device = Application::Get()->GetDevice();
-  // size_pp: RGBA8Unorm = 4 bytes = 32 bits
-  size_t size_pp = Utils::BytesPerPixel(m_Format);
-  size_t upload_size = m_Width * m_Height * size_pp;
 
-#ifdef IMGUI_WGPU
-
-  {
-    WGPUImageCopyTexture dst_view = {};
-    dst_view.texture = m_Image;
-    dst_view.mipLevel = 0;
-    dst_view.origin = {0, 0, 0};
-    dst_view.aspect = WGPUTextureAspect_All;
-    WGPUTextureDataLayout layout = {};
-    layout.offset = 0;
-    layout.bytesPerRow = m_Width * size_pp; // 列数 * 像素尺寸
-    layout.rowsPerImage = m_Height;         // 行数
-    WGPUExtent3D size = {(uint32_t)m_Width, (uint32_t)m_Height, 1}; // size here
-    // NOTE: write data to texture with specific size and layout
-    wgpuQueueWriteTexture(device.getQueue(), &dst_view, data, upload_size,
-                          &layout, &size);
-  }
-
-#endif // IMGUI_WGPU
+  if (!ResourceManager::updateTexture(m_Width, m_Height, m_Format, device,
+                                      &m_Image, data)) {
+    std::cerr << "Could not set data to texture!" << std::endl;
+  };
 }
 
 void Image::Resize(uint32_t width, uint32_t height) {
   if (m_Image && m_Width == width && m_Height == height)
     return;
-
-  // TODO: max size?
 
   m_Width = width;
   m_Height = height;
