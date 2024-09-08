@@ -21,7 +21,8 @@ public:
         const void *data = nullptr);
   ~Image();
 
-  static void InitModel(uint32_t width, uint32_t height);
+  static void InitModel(uint32_t width, uint32_t height,
+                        wgpu::TextureView *pTextureView, wgpu::Sampler *pSampler);
   void SetData(const void *data);
 
   void SetImageViewId(WGPUTextureView *id);

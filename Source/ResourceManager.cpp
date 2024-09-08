@@ -386,6 +386,7 @@ bool ResourceManager::updateTexture(uint32_t width, uint32_t height,
         bit_width(std::max(mipLevelSize.width, mipLevelSize.height));
 
     for (uint32_t level = 0; level < mipLevelCount; ++level) {
+
       std::vector<uint8_t> pixels(4 * mipLevelSize.width * mipLevelSize.height);
       if (level == 0) {
         // We cannot really avoid this copy since we need this

@@ -119,24 +119,23 @@ void *Image::Decode(const void *buffer, uint64_t length, uint32_t &outWidth,
   return data;
 }
 
-void Image::InitModel(uint32_t width, uint32_t height) {
+void Image::InitModel(uint32_t width, uint32_t height,
+                      TextureView *tex_id, Sampler *sampler) {
   auto app = Application::Get();
   Device device = app->GetDevice();
   TextureFormat swapChainFormat = app->GetSwapChainFormat();
 
-  TextureView tex_id = nullptr;
-  Sampler sampler = nullptr;
 
   ResourceManager::initTexture(width, height,
                                TextureUsage::RenderAttachment |
                                    TextureUsage::TextureBinding |
                                    TextureUsage::CopyDst,
-                               swapChainFormat, device, &tex_id, &sampler);
-  ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
+                               swapChainFormat, device, tex_id, sampler);
+  ImGuiID tex_id_hash = ImHashData(tex_id, sizeof(*tex_id));
   auto found = app->m_TextureStorage.GetVoidPtr(tex_id_hash);
   if (!found) {
-    app->m_TextureStorage.SetVoidPtr(tex_id_hash, tex_id);
-    app->m_TextureIdSet.insert(tex_id);
+    app->m_TextureStorage.SetVoidPtr(tex_id_hash, *tex_id);
+    app->m_TextureIdSet.insert(*tex_id);
   }
 }
 

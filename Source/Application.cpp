@@ -164,12 +164,12 @@ bool Application::onInit() {
   QueueEvent([this] {
     // [CPU] load model geometry
     bool success = ResourceManager::loadGeometryFromObj(
-        RESOURCE_DIR "/fourareen.obj", m_vertexData);
+        RESOURCE_DIR "/cube.obj", m_vertexData);
     if (!success) {
       std::cerr << "Could not load geometry!" << std::endl;
     }
-
     buildRenderPipeline();
+
   });
 
   initGui();
@@ -1068,16 +1068,16 @@ void Application::updateGui(RenderPassEncoder renderPass) {
   }
 
   // iterate m_TextureMap to get Keyboard
-  for (auto &tex_id : m_TextureIdSet) {
-    ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
-    auto found = m_TextureStorage.GetVoidPtr(tex_id_hash);
-    if (found) {
-      ImGui::Begin("Image");
-      auto region = ImGui::GetContentRegionAvail();
-      ImGui::Image((ImTextureID)tex_id, {(float)region.x, (float)region.y});
-      ImGui::End();
-    }
-  };
+//   for (auto &tex_id : m_TextureIdSet) {
+//     ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
+//     auto found = m_TextureStorage.GetVoidPtr(tex_id_hash);
+//     if (found) {
+//       ImGui::Begin("Model from m_TextureIdSet");
+//       auto region = ImGui::GetContentRegionAvail();
+//       ImGui::Image((ImTextureID)tex_id, {(float)region.x, (float)region.y});
+//       ImGui::End();
+//     }
+//   };
 
   {
     bool changed = false;

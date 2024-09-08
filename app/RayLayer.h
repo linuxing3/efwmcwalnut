@@ -1,18 +1,17 @@
-#include "Application.h"
-
-#include "ResourceManager.h"
-#include "Walnut/Image.h"
-#include "Walnut/Timer.h"
-
-#include "Camera.h"
-#include "Renderer.h"
-#include "imgui.h"
-
 #include <float.h>
+
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 #include <memory>
 #include <vector>
+
+#include "Application.h"
+#include "Camera.h"
+#include "Renderer.h"
+#include "ResourceManager.h"
+#include "Walnut/Image.h"
+#include "Walnut/Timer.h"
+#include "imgui.h"
 
 using namespace Walnut;
 
@@ -57,13 +56,16 @@ public:
       m_Scene.Spheres.push_back(sphere);
     }
 
-    Application::Get()->QueueEvent([]() { Image::InitModel(945, 1028); });
+    Application::Get()->QueueEvent([]() {
+      Image::InitModel(Application::Get()->GetWidth(),
+                       Application::Get()->GetHeight());
+
+    });
   }
 
   virtual void OnUpdate(float ts) override { m_Camera.OnUpdate(ts); }
 
   virtual void OnUIRender() override {
-
     ImGui::Begin("Settings");
     ImGui::Text("Last render: %.3fms", m_LastRenderTime);
     if (ImGui::Button("Render")) {
@@ -135,8 +137,8 @@ public:
     Timer timer;
 
     m_Camera.OnResize(m_ViewportWidth, m_ViewportHeight);
+    auto image = m_Renderer.GetFinalImage();
 
-    // render procedure
     m_Renderer.OnResize(m_ViewportWidth, m_ViewportHeight);
     m_Renderer.Render(m_Scene, m_Camera);
 

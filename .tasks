@@ -1,0 +1,9 @@
+[project-build]
+command="xmake"
+cwd=<root>
+output=terminal
+
+[project-run]
+command="xmake run"
+cwd=<root>
+output=terminal

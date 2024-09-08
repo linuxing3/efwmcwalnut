@@ -5,8 +5,7 @@
 #include "glm/geometric.hpp"
 #include <algorithm>
 #include <cstdint>
-/* #include <execution> */
-#include <iostream>
+#include <execution> 
 
 namespace Utils {
 
@@ -47,7 +46,7 @@ void Renderer::OnResize(uint32_t width, uint32_t height) {
   // before render
   delete[] m_ImageData;
   m_ImageData = new uint32_t[width * height];
-/* #define MT */
+#define MT 1
 #ifdef MT
 
   // Accumulatted sampling
@@ -69,8 +68,6 @@ void Renderer::OnResize(uint32_t width, uint32_t height) {
 void Renderer::Render(const Scene &scene, const Camera &camera) {
   m_ActiveScene = &scene;
   m_ActiveCamera = &camera;
-
-  /* #define MT 1 */
 
 #ifdef MT
   // Copilot explain the following code block in std::for_each
@@ -136,7 +133,7 @@ void Renderer::Render(const Scene &scene, const Camera &camera) {
   else
     m_FrameIndex = 1;
 }
-
+    
 glm::vec4 Renderer::PerPixelSimpleColor(uint32_t x, uint32_t y) {
   glm::vec3 skyColor = glm::vec3(0.6f, 0.7f, 0.9f);
   return glm::vec4{skyColor, 1.0f};

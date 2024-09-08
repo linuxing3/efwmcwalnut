@@ -1,0 +1,13 @@
+[project]
+name = "efwmcwalnut"
+version = "0.1.0"
+description = "Add a short description here"
+authors = ["linuxing3 <linuxing3@qq.com>"]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tasks]
+
+[dependencies]
+glfw3 = "*"
+imgui = "*"

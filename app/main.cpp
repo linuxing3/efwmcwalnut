@@ -26,7 +26,8 @@
 
 #pragma once
 #include "Application.h"
-#include "RayLayer.h"
+// #include "RayLayer.h"
+#include "ModelLayer.h"
 
 int main(int argc, char **) {
 
@@ -36,7 +37,7 @@ int main(int argc, char **) {
   auto *app = new Application(spec);
 
   // NOTE:
-  std::shared_ptr<RayLayer> rayLayer = std::make_shared<RayLayer>();
+  std::shared_ptr<ModelLayer> rayLayer = std::make_shared<ModelLayer>();
   app->PushLayer(rayLayer);
 
   // Sett callbacks

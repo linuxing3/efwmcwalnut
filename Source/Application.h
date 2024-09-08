@@ -35,8 +35,10 @@
 #include <GLFW/glfw3.h>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <queue>
 #include <set>
+#include <stdint.h>
 #include <vector>
 #include <webgpu.hpp>
 
@@ -89,6 +91,9 @@ public:
 
   TextureFormat GetSwapChainFormat() { return m_swapChainFormat; };
   TextureFormat GetDepthTextureFormat() { return m_depthTextureFormat; };
+
+  uint32_t GetWidth() { return m_swapChainDesc.width; };
+  uint32_t GetHeight() { return m_swapChainDesc.height; };
 
   TextureView GetCurrentDepthView() { return m_depthTextureView; }
   vector<BindGroupEntry> GetBindings() { return m_bindingEntries; };
@@ -229,8 +234,10 @@ public:
   void pushModelTexture(uint32_t width, uint32_t height) {
     initModel(width, height);
   }
+  ImGuiStorage GetTextureStorage() { return m_TextureStorage; };
 
-  template <typename Func> void QueueEvent(Func &&func) {
+  template <typename Func>
+  void QueueEvent(Func &&func) {
     m_EventQueue.emplace(func);
   }
 
